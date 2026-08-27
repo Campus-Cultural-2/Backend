@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from api.features.event.event_controller import router as event_router
 from api.features.subscription.subscription_controller import router as subscription_router
@@ -11,6 +12,7 @@ from api.features.user.user_repository import UserRepository
 from api.features.user.user_service import UserService
 from api.shared.exceptions import register_exception_handlers
 from database.config.session import DatabaseManager
+from database.config.settings import settings
 
 
 def create_app(database_url: str | None = None) -> FastAPI:
@@ -20,12 +22,22 @@ def create_app(database_url: str | None = None) -> FastAPI:
     async def lifespan(app: FastAPI):
         app.state.database_manager = database_manager
         await database_manager.create_tables()
-        async with database_manager.session_factory() as session:
-            service = UserService(UserRepository(session))
-            await service.ensure_default_admin()
+        if settings.seed_default_admin:
+            async with database_manager.session_factory() as session:
+                service = UserService(UserRepository(session))
+                await service.ensure_default_admin()
         yield
 
     app = FastAPI(title="Campus Cultural API", lifespan=lifespan)
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins_list,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     register_exception_handlers(app)
 
     @app.get("/health")

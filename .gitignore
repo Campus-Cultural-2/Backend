@@ -14,3 +14,16 @@ wheels/
 
 # Local database
 database/app.db
+
+# Databases locais (qualquer lugar do projeto)
+*.db
+*.sqlite
+*.sqlite3
+
+# Relatórios de teste
+.coverage
+htmlcov/
+coverage.xml
+
+# macOS
+.DS_Store
