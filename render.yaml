@@ -44,6 +44,12 @@ services:
     # sem tocar no banco, entao nao acorda o Neon a toa.
     healthCheckPath: /health
 
+    # Publica a cada commit na main. Como a main so recebe commit via Pull
+    # Request com CI verde, "mergeado" e "publicado" viram a mesma coisa.
+    # Este ja e o padrao do Render; fica declarado aqui para estar no
+    # repositorio em vez de depender de um default que pode mudar.
+    autoDeployTrigger: commit
+
     envVars:
       # Liga as validacoes de producao no database/config/settings.py.
       - key: ENVIRONMENT
