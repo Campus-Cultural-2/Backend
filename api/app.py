@@ -20,13 +20,15 @@ def create_app(database_url: str | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        # As tabelas sao criadas e alteradas pelo Alembic, no deploy.
+        # A aplicacao nao mexe no formato do banco ao subir.
         app.state.database_manager = database_manager
-        await database_manager.create_tables()
         if settings.seed_default_admin:
             async with database_manager.session_factory() as session:
                 service = UserService(UserRepository(session))
                 await service.ensure_default_admin()
         yield
+        await database_manager.dispose()
 
     app = FastAPI(title="Campus Cultural API", lifespan=lifespan)
 

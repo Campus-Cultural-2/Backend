@@ -5,15 +5,23 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
+
+# Os modelos precisam ser importados para se registrarem no Base.metadata.
+# Sem estes imports o metadata fica vazio e o `--autogenerate` acha que
+# todas as tabelas foram removidas, gerando uma migration que apaga o banco.
+from api.features.event.event import Event  # noqa: F401
+from api.features.subscription.subscription import EventSubscription  # noqa: F401
+from api.features.user.user import User  # noqa: F401
 from database.config.base import Base
 from database.config.settings import get_database_url
+from database.config.urls import to_sync_url
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-config.set_main_option("sqlalchemy.url", get_database_url())
+config.set_main_option("sqlalchemy.url", to_sync_url(get_database_url()))
 
 target_metadata = Base.metadata
 
