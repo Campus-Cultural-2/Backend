@@ -1,0 +1,68 @@
+# Configuracao do deploy no Render, versionada junto com o codigo.
+#
+# Por que este arquivo existe: antes, toda a configuracao de deploy vivia
+# so no painel do Render. Quem sabia como o servico estava montado era uma
+# pessoa, e quando ela saiu do time o conhecimento saiu junto. Aqui a
+# configuracao fica no repositorio: da para ler, revisar em Pull Request e
+# recriar o servico do zero.
+#
+# Como usar: no Render, New > Blueprint, apontando para este repositorio.
+# O Render le este arquivo e cria o servico com estas configuracoes.
+#
+# Os valores marcados com `sync: false` NAO ficam aqui. Sao segredos ou
+# valores que mudam por ambiente, e voce preenche no painel do Render.
+# Este arquivo documenta que a variavel existe, nunca o valor dela.
+
+services:
+  - type: web
+    name: campus-cultural-api
+    runtime: python
+    plan: free
+    branch: main
+
+    # Region: o Render nao tem regiao na America do Sul. Deixe o banco do
+    # Neon na mesma regiao escolhida aqui, senao cada consulta atravessa o
+    # continente duas vezes.
+    region: virginia
+
+    # A versao do Python vem do arquivo .python-version (3.14).
+    # Instala o uv e depois as dependencias exatas do uv.lock.
+    # --no-dev pula pytest e ruff, que nao sao usados em producao.
+    buildCommand: pip install uv && uv sync --frozen --no-dev
+
+    # Roda as migrations e so entao sobe a aplicacao. Se a migration
+    # falhar, o `&&` impede a aplicacao de subir com o banco no formato
+    # errado. O `alembic upgrade head` e idempotente: quando nao ha
+    # migration nova, ele nao faz nada.
+    #
+    # Em planos pagos da para usar `preDeployCommand` para rodar as
+    # migrations uma vez por deploy, em vez de a cada restart.
+    startCommand: uv run alembic upgrade head && uv run uvicorn main:app --host 0.0.0.0 --port $PORT
+
+    # O Render usa esta rota para saber se a aplicacao subiu. Ela responde
+    # sem tocar no banco, entao nao acorda o Neon a toa.
+    healthCheckPath: /health
+
+    envVars:
+      # Liga as validacoes de producao no database/config/settings.py.
+      - key: ENVIRONMENT
+        value: production
+
+      # Nao cria o admin padrao (admin@example.com / admin123).
+      - key: SEED_DEFAULT_ADMIN
+        value: "false"
+
+      # String de conexao do Neon, colada exatamente como o Neon entrega.
+      # O codigo troca o driver e limpa os parametros sozinho.
+      - key: DATABASE_URL
+        sync: false
+
+      # 64 caracteres aleatorios. Gere com:
+      #   python -c "import secrets; print(secrets.token_hex(32))"
+      - key: JWT_SECRET_KEY
+        sync: false
+
+      # Origens liberadas no CORS, separadas por virgula.
+      # Nao pode ser "*" em producao.
+      - key: CORS_ORIGINS
+        sync: false
