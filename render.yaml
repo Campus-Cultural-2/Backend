@@ -20,10 +20,11 @@ services:
     plan: free
     branch: main
 
-    # Region: o Render nao tem regiao na America do Sul. Deixe o banco do
-    # Neon na mesma regiao escolhida aqui, senao cada consulta atravessa o
-    # continente duas vezes.
-    region: virginia
+    # Region: precisa ser a mesma regiao do banco no Neon, que esta em
+    # Ohio. Banco e aplicacao em regioes diferentes fazem cada consulta
+    # atravessar o pais, e sao varias consultas por requisicao.
+    # A regiao nao pode ser alterada depois que o servico e criado.
+    region: ohio
 
     # A versao do Python vem do arquivo .python-version (3.14).
     # Instala o uv e depois as dependencias exatas do uv.lock.
