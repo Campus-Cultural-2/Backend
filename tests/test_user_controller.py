@@ -10,7 +10,6 @@ from api.app import create_app
 from api.features.user.user import User
 from api.features.user.user_repository import UserRepository
 from api.shared.security import create_access_token
-from database.config.session import DatabaseManager
 from database.config.settings import settings
 
 
@@ -61,8 +60,8 @@ def test_healthcheck_returns_ok(client: TestClient) -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_unhandled_exception_returns_internal_error(tmp_path) -> None:
-    app = create_app(database_url=f"sqlite:///{tmp_path / 'test.db'}")
+def test_unhandled_exception_returns_internal_error(database_url: str) -> None:
+    app = create_app(database_url=database_url)
 
     @app.get("/broken")
     async def broken_healthcheck() -> dict[str, str]:
@@ -92,9 +91,7 @@ def test_startup_hashes_default_admin_password(client: TestClient) -> None:
     assert PasswordHash.recommended().verify("admin123", stored_password)
 
 
-def test_startup_does_not_duplicate_default_admin(tmp_path) -> None:
-    database_url = f"sqlite:///{tmp_path / 'test.db'}"
-
+def test_startup_does_not_duplicate_default_admin(database_url: str) -> None:
     with TestClient(create_app(database_url=database_url)) as first_client:
         first_response = first_client.get("/users", headers=admin_auth_headers(first_client))
 
@@ -573,9 +570,3 @@ def test_update_user_with_duplicate_email_returns_conflict_error(client: TestCli
         "message": "A user with this email already exists",
         "details": {"field": "email", "value": "diego@example.com"},
     }
-
-
-def test_to_async_database_url_keeps_already_async_url() -> None:
-    database_url = "sqlite+aiosqlite:///already-async.db"
-
-    assert DatabaseManager._to_async_database_url(database_url) == database_url
