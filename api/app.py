@@ -31,7 +31,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
         await database_manager.dispose()
 
     app = FastAPI(title="Campus Cultural API", lifespan=lifespan)
-    
+
     app.add_middleware(UnhandledExceptionMiddleware)
     app.add_middleware(
         CORSMiddleware,
