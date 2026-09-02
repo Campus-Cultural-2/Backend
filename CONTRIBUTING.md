@@ -48,6 +48,10 @@ uv run task dev
 
 Abra <http://127.0.0.1:8000/docs>. Se a documentação da API aparecer, o setup está pronto.
 
+O `task dev` roda `alembic upgrade head` antes de subir a API, então o banco local é
+criado sozinho no primeiro uso. É exatamente o que o Render faz em produção: a
+aplicação **não** cria tabelas ao subir, quem cria é o Alembic.
+
 ### Sobre o `.env`
 
 - `.env.example` **é versionado** e tem valores de exemplo. Ele documenta quais configurações existem.
