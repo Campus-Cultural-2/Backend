@@ -7,6 +7,8 @@ from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 
 class ErrorCode(StrEnum):
@@ -139,6 +141,17 @@ async def internal_error_handler(_: Request, exc: Exception) -> JSONResponse:
             "details": {"error_type": exc.__class__.__name__},
         },
     )
+
+
+class UnhandledExceptionMiddleware(BaseHTTPMiddleware):
+    """Converte excecoes nao tratadas em uma resposta 500 antes que elas escapem
+    para o ServerErrorMiddleware do Starlette."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        try:
+            return await call_next(request)
+        except Exception as exc:  # noqa: BLE001
+            return await internal_error_handler(request, exc)
 
 
 def register_exception_handlers(app: FastAPI) -> None:

@@ -16,6 +16,6 @@ class Event(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     image: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    event_datetime: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    event_datetime: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     event_location: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
