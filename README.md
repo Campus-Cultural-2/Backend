@@ -60,6 +60,10 @@ Comando para subir a API em modo de desenvolvimento:
 uv run task dev
 ```
 
+Este comando roda `alembic upgrade head` antes do servidor, então o banco local
+(SQLite) é criado e atualizado sozinho. A aplicação **não** cria tabelas ao subir:
+tanto aqui quanto em produção, quem define o formato do banco é o Alembic.
+
 Depois disso, a API ficará disponível em:
 
 - `http://127.0.0.1:8000`
