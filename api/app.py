@@ -10,7 +10,7 @@ from api.features.subscription.subscription_controller import router as subscrip
 from api.features.user.user_controller import router as user_router
 from api.features.user.user_repository import UserRepository
 from api.features.user.user_service import UserService
-from api.shared.exceptions import register_exception_handlers
+from api.shared.exceptions import UnhandledExceptionMiddleware, register_exception_handlers
 from database.config.session import DatabaseManager
 from database.config.settings import settings
 
@@ -32,6 +32,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
 
     app = FastAPI(title="Campus Cultural API", lifespan=lifespan)
 
+    app.add_middleware(UnhandledExceptionMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins_list,
