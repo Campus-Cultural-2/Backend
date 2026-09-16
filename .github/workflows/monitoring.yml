@@ -7,17 +7,22 @@ name: Monitorar aplicacao
 # servico externo envolvido.
 on:
   schedule:
-    # A cada 30 minutos. O horario do cron do GitHub Actions e sempre UTC, e
-    # a execucao pode atrasar alguns minutos quando a fila esta cheia; para
-    # monitoramento isso nao tem problema.
+    # A cada 2 horas, no minuto zero. O horario do cron do GitHub Actions e
+    # sempre UTC, e a execucao pode atrasar alguns minutos quando a fila esta
+    # cheia; para monitoramento isso nao tem problema.
     #
-    # Por que 30 e nao 15: o servico do Render dorme depois de 15 minutos sem
-    # trafego, e o plano gratuito da 750 horas de execucao por mes, enquanto
-    # um mes tem cerca de 730. Um ping a cada 15 minutos manteria a aplicacao
-    # acordada 24/7 e consumiria praticamente toda a cota. A cada 30 minutos
-    # ela acorda, fica no ar os 15 minutos seguintes e volta a dormir, o que
-    # usa perto da metade.
-    - cron: "*/90 * * * *"
+    # CUIDADO com a sintaxe: o campo de minuto so aceita 0 a 59. Escrever
+    # "*/90" nao significa "a cada 90 minutos" — o valor satura e acaba
+    # rodando de hora em hora, igual a "0 * * * *". Intervalo maior que uma
+    # hora se faz no campo de HORA, que e o segundo: "0 */2 * * *".
+    #
+    # Intervalo maior tambem gasta menos cota do Render. O servico dorme
+    # depois de 15 minutos sem trafego, e o plano gratuito da 750 horas por
+    # mes. A cada 2 horas ele acorda, fica no ar 15 minutos e volta a dormir:
+    # cerca de 90 horas por mes, bem dentro do limite. Para efeito de
+    # comparacao, um ping a cada 15 minutos manteria a aplicacao acordada
+    # 24/7 e consumiria praticamente toda a cota.
+    - cron: "0 */2 * * *"
 
   # Permite rodar a verificacao na hora, pelo botao "Run workflow".
   workflow_dispatch:

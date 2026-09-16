@@ -111,7 +111,7 @@ de espera.
 
 ```bash
 uv run task format    # reescreve seu código no padrão do projeto
-uv run task check     # lint + os 46 testes
+uv run task check     # lint + a suite de testes
 ```
 
 ### 5. Faça o commit no padrão do time
@@ -200,7 +200,7 @@ Ele prova que o seu código funciona em outro lugar além da sua máquina.
 
 | Verifica | Reproduza localmente com |
 |----------|--------------------------|
-| Formatação, lint e os 46 testes | `uv run task format-check && uv run task check` |
+| Formatação, lint e a suíte de testes | `uv run task format-check && uv run task check` |
 
 ### Quando o CI ficar vermelho
 
