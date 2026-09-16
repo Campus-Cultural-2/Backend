@@ -11,6 +11,9 @@ on:
   pull_request:
     branches:
       - main
+  # NAO REMOVA este gatilho. O render.yaml usa `autoDeployTrigger: checksPass`,
+  # e o Render nao publica um commit que nao tenha nenhuma checagem. Sem o CI
+  # rodando no push para a main, os deploys param sem aviso.
   push:
     branches:
       - main

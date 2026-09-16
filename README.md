@@ -82,16 +82,36 @@ Depois disso, a API ficará disponível em:
 O deploy roda no Render e a configuracao esta versionada em
 [`render.yaml`](render.yaml). O banco de producao e um Postgres no Neon.
 
-### Nao existe deploy.yml, e isso e proposital
+### Como o deploy e disparado
 
-O deploy **nao** e feito por GitHub Actions. Quem publica e o proprio Render, que
-observa a branch `main` e reconstroi o servico a cada commit — comportamento
-declarado em [`render.yaml`](render.yaml) no campo `autoDeployTrigger: commit`.
+Quem publica e o Render, nao o GitHub Actions. O servico observa a branch `main` e
+reconstroi a aplicacao quando as checagens de um novo commit passam — comportamento
+declarado em [`render.yaml`](render.yaml) no campo `autoDeployTrigger: checksPass`.
 
-Um `deploy.yml` significaria guardar credenciais de deploy nos secrets do GitHub e
-manter uma segunda descricao do processo, que poderia divergir da primeira. Com o
-Render observando a branch, existe uma unica fonte de verdade e nenhuma credencial
-de deploy no GitHub.
+Nao existe um `deploy.yml` neste repositorio. O raciocinio por tras dessa escolha,
+para quem precisar revisita-la:
+
+- **Nenhuma credencial de producao no GitHub.** Um workflow de deploy precisaria de
+  uma chave de API do Render guardada nos *secrets* do repositorio. Hoje nenhum
+  workflow daqui usa `secrets`: o CI apenas le codigo e roda teste. Como o CI executa
+  codigo que chega por Pull Request, manter o pipeline sem credencial reduz bastante
+  o que um Pull Request malicioso conseguiria alcancar. As chaves ficam no painel do
+  Render, que e quem precisa delas.
+- **Uma unica descricao do processo.** O `render.yaml` ja define build, start,
+  migrations, health check e variaveis. Um segundo arquivo descrevendo o mesmo deploy
+  tenderia a divergir do primeiro com o tempo.
+- **Recursos que a plataforma ja entrega.** O Render so conclui o deploy quando
+  `/health` responde, guarda as versoes anteriores para rollback em um clique, e so
+  encaminha trafego para a versao nova depois que ela sobe.
+- **A garantia de codigo testado vem antes do deploy.** A `main` e protegida e so
+  aceita commit via Pull Request com a checagem `quality` verde; o `checksPass` ainda
+  exige que as checagens do commit passem antes de publicar.
+
+Um workflow de deploy passa a fazer sentido quando a hospedagem nao observa o
+repositorio (VPS, Kubernetes, publicacao em loja de aplicativos), quando existem
+passos entre o build e a publicacao (imagem Docker, registry, testes de fumaca),
+quando ha mais de um ambiente com aprovacao manual entre eles, ou quando o deploy
+precisa coordenar mais de um repositorio.
 
 ### Monitoramento
 

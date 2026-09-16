@@ -44,11 +44,15 @@ services:
     # sem tocar no banco, entao nao acorda o Neon a toa.
     healthCheckPath: /health
 
-    # Publica a cada commit na main. Como a main so recebe commit via Pull
-    # Request com CI verde, "mergeado" e "publicado" viram a mesma coisa.
-    # Este ja e o padrao do Render; fica declarado aqui para estar no
-    # repositorio em vez de depender de um default que pode mudar.
-    autoDeployTrigger: commit
+    # Publica a cada commit na main, mas so depois que as checagens daquele
+    # commit passarem. Como a main ja so recebe commit via Pull Request com CI
+    # verde, "mergeado" e "publicado" viram a mesma coisa.
+    #
+    # ATENCAO: com checksPass, o Render NAO publica se o commit nao tiver
+    # nenhuma checagem. Isto depende de o workflow de CI rodar tambem no push
+    # para a main, e nao apenas em pull_request. Se alguem remover o gatilho
+    # `push` do .github/workflows/main.yml, os deploys param em silencio.
+    autoDeployTrigger: checksPass
 
     envVars:
       # Liga as validacoes de producao no database/config/settings.py.
