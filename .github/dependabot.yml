@@ -1,0 +1,37 @@
+# Atualizacoes automaticas de dependencias, abertas como Pull Request.
+#
+# Serve a duas coisas. Primeiro, seguranca: correcao de vulnerabilidade em
+# biblioteca chega sozinha, em vez de esperar alguem lembrar de atualizar.
+# Segundo, e o que torna pratico fixar as actions no SHA do commit: sem isto,
+# os SHAs no workflow envelheceriam para sempre.
+#
+# Cada atualizacao vira um Pull Request comum, que passa pelo mesmo CI e pela
+# mesma revisao. Nada entra na main sem checagem verde.
+
+version: 2
+updates:
+  # Actions usadas nos workflows do GitHub Actions.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore"
+    labels:
+      - dependencias
+
+  # Dependencias Python declaradas no pyproject.toml / uv.lock.
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore"
+    labels:
+      - dependencias
+    # Agrupa as atualizacoes pequenas em um PR so, para nao virar ruido.
+    groups:
+      dependencias-menores:
+        update-types:
+          - minor
+          - patch
