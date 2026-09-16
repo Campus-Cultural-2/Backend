@@ -1,3 +1,10 @@
+# Ambiente LOCAL da suite e2e. Aponta para o servidor de desenvolvimento
+# em localhost, nunca para producao.
+#
+# A senha abaixo e a do admin padrao de desenvolvimento, criado pelo
+# SEED_DEFAULT_ADMIN quando ENVIRONMENT=development. Em producao a flag fica
+# em false e esse usuario nao existe, entao este valor nao da acesso a nada
+# publicado. Nao e uma credencial real e nao deve ser usada como tal.
 variables:
   - name: baseUrl
     value: http://localhost:8000
