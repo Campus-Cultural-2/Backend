@@ -1,0 +1,43 @@
+name: Monitorar aplicacao
+
+# Verifica periodicamente se a API publicada esta respondendo.
+#
+# Quando o curl falha, o passo falha, a execucao fica vermelha e o GitHub
+# manda e-mail para quem tem o repositorio. Esse e o alerta: nao existe
+# servico externo envolvido.
+on:
+  schedule:
+    # A cada 30 minutos. O horario do cron do GitHub Actions e sempre UTC, e
+    # a execucao pode atrasar alguns minutos quando a fila esta cheia; para
+    # monitoramento isso nao tem problema.
+    #
+    # Por que 30 e nao 15: o servico do Render dorme depois de 15 minutos sem
+    # trafego, e o plano gratuito da 750 horas de execucao por mes, enquanto
+    # um mes tem cerca de 730. Um ping a cada 15 minutos manteria a aplicacao
+    # acordada 24/7 e consumiria praticamente toda a cota. A cada 30 minutos
+    # ela acorda, fica no ar os 15 minutos seguintes e volta a dormir, o que
+    # usa perto da metade.
+    - cron: "*/30 * * * *"
+
+  # Permite rodar a verificacao na hora, pelo botao "Run workflow".
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Verificar /health
+        # --fail          faz o curl retornar erro em status HTTP 4xx e 5xx;
+        #                 sem isso ele baixaria a pagina de erro e sairia com
+        #                 sucesso
+        # --silent        esconde a barra de progresso
+        # --show-error    mas mantem a mensagem de erro no log
+        # --max-time 120  tempo suficiente para o servico acordar (leva cerca
+        #                 de 1 minuto), mas ainda falha se estiver travado
+        run: |
+          curl --fail --silent --show-error --max-time 120 \
+            https://campus-cultural-api.onrender.com/health

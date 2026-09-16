@@ -4,14 +4,22 @@ API backend do projeto usando Python.
 
 ## Fluxo de desenvolvimento
 
-Para contribuir no projeto, siga este fluxo:
+O projeto usa **uma única branch de longa duração: `main`**. Não existe branch
+`develop`. Para contribuir:
 
-1. Clone o repositório e entre na branch `develop`.
-2. Crie uma nova branch a partir de `develop` para implementar sua alteração.
-3. Faça o desenvolvimento, rode os testes e valide o lint localmente.
+1. Clone o repositório e atualize a `main` (`git checkout main && git pull`).
+2. Crie uma branch curta a partir da `main`, no formato `tipo/descricao-curta`.
+3. Faça o desenvolvimento, rode os testes e valide o lint localmente
+   (`uv run task format && uv run task check`).
 4. Envie sua branch para o repositório remoto.
-5. Abra uma Pull Request com destino para a branch `develop`.
-6. Após a revisão e aprovação, faça o merge da Pull Request.
+5. Abra uma Pull Request com destino para a branch `main`.
+6. Após o CI verde e a aprovação na revisão, faça o merge da Pull Request.
+
+A `main` é protegida por *branch protection*: só aceita commit via Pull Request com
+a checagem `quality` do CI passando. O merge na `main` dispara o deploy automático.
+
+O fluxo completo, com convenções de nome e o que fazer quando o CI falha, está em
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## O que este projeto usa
 
@@ -73,6 +81,23 @@ Depois disso, a API ficará disponível em:
 
 O deploy roda no Render e a configuracao esta versionada em
 [`render.yaml`](render.yaml). O banco de producao e um Postgres no Neon.
+
+### Nao existe deploy.yml, e isso e proposital
+
+O deploy **nao** e feito por GitHub Actions. Quem publica e o proprio Render, que
+observa a branch `main` e reconstroi o servico a cada commit — comportamento
+declarado em [`render.yaml`](render.yaml) no campo `autoDeployTrigger: commit`.
+
+Um `deploy.yml` significaria guardar credenciais de deploy nos secrets do GitHub e
+manter uma segunda descricao do processo, que poderia divergir da primeira. Com o
+Render observando a branch, existe uma unica fonte de verdade e nenhuma credencial
+de deploy no GitHub.
+
+### Monitoramento
+
+O [`.github/workflows/monitoring.yml`](.github/workflows/monitoring.yml) verifica a
+rota `/health` a cada 30 minutos e tambem pode ser disparado a mao. Se a aplicacao
+nao responder, a execucao falha e o GitHub notifica por e-mail.
 
 ### Como o deploy funciona
 
