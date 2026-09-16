@@ -85,13 +85,59 @@ O deploy roda no Render e a configuracao esta versionada em
 ### Nao existe deploy.yml, e isso e proposital
 
 O deploy **nao** e feito por GitHub Actions. Quem publica e o proprio Render, que
-observa a branch `main` e reconstroi o servico a cada commit — comportamento
-declarado em [`render.yaml`](render.yaml) no campo `autoDeployTrigger: commit`.
+observa a branch `main` — comportamento declarado em [`render.yaml`](render.yaml)
+no campo `autoDeployTrigger: checksPass`. Ja e entrega continua: um `deploy.yml`
+nao acrescentaria um passo que falta, substituiria por uma versao feita a mao um
+passo que a plataforma ja executa.
 
-Um `deploy.yml` significaria guardar credenciais de deploy nos secrets do GitHub e
-manter uma segunda descricao do processo, que poderia divergir da primeira. Com o
-Render observando a branch, existe uma unica fonte de verdade e nenhuma credencial
-de deploy no GitHub.
+Sao cinco motivos.
+
+**1. Exigiria uma credencial de producao dentro do GitHub.** Para um workflow mandar
+o Render publicar, ele precisaria de uma chave de API do Render guardada nos
+*secrets* do repositorio. Hoje **nenhum workflow deste projeto usa `secrets`**: o CI
+so le codigo e roda teste.
+
+Isso importa por causa de uma classe de ataque conhecida como **Poisoned Pipeline
+Execution** (CICD-SEC-4 do OWASP Top 10 CI/CD). O CI executa codigo de terceiros —
+qualquer pessoa pode abrir um Pull Request — com as credenciais que o pipeline
+tiver. Como o pipeline nao tem credencial nenhuma, nao ha o que roubar. Colocar uma
+chave de deploy ali faria com que executar codigo dentro de uma execucao passasse a
+significar publicar em producao. As credenciais ficam so no painel do Render, que e
+quem precisa delas; o GitHub nao precisa saber publicar.
+
+**2. Criaria duas descricoes do mesmo processo.** O `render.yaml` ja descreve build,
+start, migrations, health check e variaveis. Um `deploy.yml` seria uma segunda
+descricao da mesma coisa, e duas fontes de verdade so concordam enquanto alguem
+lembra de atualizar as duas. E o mesmo problema que ja tivemos entre o `create_all`
+e o Alembic disputando o formato do banco: resolver aquilo foi escolher uma fonte
+de verdade so.
+
+**3. Perderiamos o que a plataforma ja faz.** O Render so considera o deploy
+concluido quando a rota `/health` responde, guarda as versoes anteriores com
+rollback em um clique, mantem o historico de qual commit esta no ar e so encaminha
+trafego para a versao nova depois que ela sobe. Um `deploy.yml` que apenas chamasse
+a API e encerrasse nao teria nada disso.
+
+**4. O que garante que so codigo testado vai para producao nao e o deploy.** E a
+*branch protection*: a `main` so aceita commit via Pull Request com a checagem
+`quality` verde. Quando um commit chega na `main`, ele ja passou pelo CI — nao
+existe caminho que pule essa etapa. Alem disso, o `autoDeployTrigger: checksPass`
+faz o Render esperar as checagens daquele commit antes de publicar. Um workflow
+conferindo o CI de novo seria redundante.
+
+**5. Complexidade sem beneficio e custo puro.** Mais um arquivo para manter, mais um
+ponto de falha e mais uma coisa para entender ao entrar no time, para produzir o
+mesmo resultado que uma linha de configuracao ja produz.
+
+#### Quando um deploy.yml faria sentido
+
+A recomendacao nao e errada em geral — ela e a resposta certa quando a hospedagem
+**nao** observa o repositorio (um VPS, Kubernetes, publicar um APK numa loja),
+quando existem passos entre build e publicacao (construir imagem Docker, enviar
+para um registry, rodar testes de fumaca, avisar o time), quando ha varios
+ambientes com aprovacao manual entre eles, ou quando o deploy precisa coordenar
+mais de um repositorio. Nenhum e o caso aqui: um servico, um ambiente, uma
+hospedagem que ja observa a `main`.
 
 ### Monitoramento
 
