@@ -17,7 +17,7 @@ on:
     # acordada 24/7 e consumiria praticamente toda a cota. A cada 30 minutos
     # ela acorda, fica no ar os 15 minutos seguintes e volta a dormir, o que
     # usa perto da metade.
-    - cron: "*/60 * * * *"
+    - cron: "*/90 * * * *"
 
   # Permite rodar a verificacao na hora, pelo botao "Run workflow".
   workflow_dispatch:
