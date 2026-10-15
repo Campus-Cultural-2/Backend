@@ -77,3 +77,14 @@ services:
       # Nao pode ser "*" em producao.
       - key: CORS_ORIGINS
         sync: false
+
+      # Credenciais do Cloudinary, onde ficam as imagens. Estao no painel
+      # do Cloudinary, em Settings > API Keys. A chave precisa poder enviar
+      # e apagar imagens. O API Secret nunca vai para o app nem para o site:
+      # so o backend conversa com o Cloudinary.
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false

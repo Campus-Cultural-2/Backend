@@ -7,7 +7,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.app import create_app
+from api.shared.dependencies import get_image_storage
 from database.config.session import DatabaseManager
+from tests.fakes import FakeImageStorage
 
 
 async def _create_schema(database_url: str) -> None:
@@ -30,6 +32,13 @@ def database_url(tmp_path) -> str:
 
 
 @pytest.fixture
-def client(database_url: str) -> Generator[TestClient, None, None]:
-    with TestClient(create_app(database_url=database_url)) as test_client:
+def image_storage() -> FakeImageStorage:
+    return FakeImageStorage()
+
+
+@pytest.fixture
+def client(database_url: str, image_storage: FakeImageStorage) -> Generator[TestClient, None, None]:
+    app = create_app(database_url=database_url)
+    app.dependency_overrides[get_image_storage] = lambda: image_storage
+    with TestClient(app) as test_client:
         yield test_client

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, Response, status
+from fastapi.responses import RedirectResponse
 
 from api.features.user.user import User
 from api.features.user.user_schemas import (
@@ -83,8 +84,18 @@ async def update_profile_picture(
     service: Annotated[UserService, Depends(get_user_service)],
 ) -> UserReadOut:
     return UserReadOut.model_validate(
-        await service.update_profile_picture(user_id, profile_picture)
+        await service.update_profile_picture(user_id, profile_picture, current_user)
     )
+
+
+@router.delete("/{user_id}/profile-picture", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_profile_picture(
+    user_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    service: Annotated[UserService, Depends(get_user_service)],
+) -> Response:
+    await service.delete_profile_picture(user_id, current_user)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{user_id}/profile-picture")
@@ -92,10 +103,11 @@ async def get_profile_picture(
     user_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[UserService, Depends(get_user_service)],
-) -> Response:
-    return Response(
-        content=await service.get_profile_picture(user_id),
-        media_type="application/octet-stream",
+) -> RedirectResponse:
+    # A foto fica no Cloudinary; a API so redireciona para o link dela.
+    return RedirectResponse(
+        await service.get_profile_picture_url(user_id),
+        status_code=status.HTTP_307_TEMPORARY_REDIRECT,
     )
 
 

@@ -6,8 +6,8 @@ This document proposes the database structure for `User`, `Event`, and `EventSub
 
 - Keep the current `users` table semantics already present in the codebase.
 - Use `events` and `event_subscriptions` as the new table names.
-- Store event images directly in `events.image`, not in a separate table.
-- Treat `profile_picture` and `image` as nullable binary fields.
+- Store image files on Cloudinary, not in the database.
+- Keep, for each image, the Cloudinary link (to show it) and its `public_id` (to delete it from Cloudinary when it is replaced, removed, or its event or user is deleted). All four columns are nullable.
 - Keep `users.ra` nullable, but only valid for students.
 - Prevent duplicate event subscriptions with a unique constraint on `(event_id, user_id)`.
 
@@ -27,13 +27,15 @@ erDiagram
         string name
         boolean is_active
         string ra UK "nullable"
-        blob profile_picture "nullable"
+        string profile_picture_url "nullable"
+        string profile_picture_public_id "nullable"
     }
 
     EVENT {
         int id PK
         int user_id FK
-        blob image "nullable"
+        string image_url "nullable"
+        string image_public_id "nullable"
         datetime created_at
         datetime start_at
         string location
@@ -62,7 +64,8 @@ erDiagram
 | `name` | `str` | not null |
 | `is_active` | `bool` | not null, default `true` |
 | `ra` | `str` | nullable, unique |
-| `profile_picture` | `LargeBinary` | nullable |
+| `profile_picture_url` | `str` | nullable, Cloudinary link |
+| `profile_picture_public_id` | `str` | nullable, Cloudinary id used to delete the image |
 
 Recommended rule:
 
@@ -74,7 +77,8 @@ Recommended rule:
 | --- | --- | --- |
 | `id` | `int` | primary key |
 | `user_id` | `int` | not null, foreign key -> `users.id` |
-| `image` | `LargeBinary` | nullable |
+| `image_url` | `str` | nullable, Cloudinary link |
+| `image_public_id` | `str` | nullable, Cloudinary id used to delete the image |
 | `created_at` | `datetime` | not null |
 | `start_at` | `datetime` | not null |
 | `location` | `str` | not null |

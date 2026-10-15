@@ -145,6 +145,9 @@ declara apenas quais variaveis existem.
 | `JWT_SECRET_KEY` | `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `SEED_DEFAULT_ADMIN` | `false` |
 | `CORS_ORIGINS` | origens do front, separadas por virgula. Nao pode ser `*` |
+| `CLOUDINARY_CLOUD_NAME` | painel do Cloudinary, em Settings > API Keys |
+| `CLOUDINARY_API_KEY` | painel do Cloudinary, em Settings > API Keys (a chave precisa poder enviar e apagar imagens) |
+| `CLOUDINARY_API_SECRET` | painel do Cloudinary, em Settings > API Keys |
 
 Se alguma estiver errada, a aplicacao **se recusa a subir** e os logs do
 Render listam exatamente o que esta faltando. Isso e proposital: e melhor

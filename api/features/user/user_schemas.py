@@ -41,12 +41,14 @@ class UserCreateOut(UserBaseSchema):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    profile_picture_url: str | None = None
 
 
 class UserReadOut(UserBaseSchema):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    profile_picture_url: str | None = None
 
 
 class UserUpdateIn(UserBaseSchema):
@@ -57,3 +59,4 @@ class UserUpdateOut(UserBaseSchema):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    profile_picture_url: str | None = None
