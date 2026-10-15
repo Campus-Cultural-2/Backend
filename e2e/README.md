@@ -15,6 +15,8 @@ requests.
   ```
   uv run task dev
   ```
+- Variáveis `CLOUDINARY_*` preenchidas no `.env` da API. Sem elas o upload
+  de profile picture responde 503 e a pasta `Users/Profile Picture` falha.
 
 ## Como executar
 
@@ -25,7 +27,7 @@ cd e2e
 bru run -r . --env Local
 ```
 
-Saída esperada (estado verde): **46 requests / 105 tests** passando.
+Saída esperada (estado verde): **50 requests / 113 tests** passando.
 
 ### Subconjuntos úteis
 
@@ -54,7 +56,7 @@ e2e/
 ├── Users/
 │   ├── Auth/                     # register, login, refresh-token (happy + erros)
 │   ├── CRUD/                     # list, get, update, delete (happy + erros)
-│   └── Profile Picture/          # upload/download (happy + erros)
+│   └── Profile Picture/          # upload/download/remoção (happy + erros)
 ├── Events/                       # create, list, get, update, delete (happy + erros)
 └── Cleanup/
     └── Delete Student.yml        # remove o student criado, deixa o DB só com admin
@@ -113,7 +115,8 @@ A aplicação recria as tabelas e o admin padrão no próximo start.
 | `GET /users/{id}`                          | 200 / 401 / 404      | happy, sem token, id inexistente                        |
 | `PUT /users/{id}`                          | 200 / 401 / 404 / 409 | happy, sem token, id inexistente, e-mail conflitante    |
 | `POST /users/{id}/profile-picture`         | 200 / 401 / 404      | happy (octet-stream), sem token, id inexistente         |
-| `GET /users/{id}/profile-picture`          | 200 / 401 / 404      | happy, sem token, admin sem foto                        |
+| `GET /users/{id}/profile-picture`          | 307→200 / 401 / 404  | happy (redirect para o Cloudinary), sem token, admin sem foto |
+| `DELETE /users/{id}/profile-picture`       | 204 / 401 / 403 / 404 | happy (apaga do Cloudinary), sem token, foto de outro usuário, já removida |
 | `DELETE /users/{id}`                       | 204 / 401 / 404      | professor (em CRUD), sem token, id inexistente, student (cleanup) |
 | `POST /events`                             | 201 / 401 / 422      | happy, sem token, campo faltando                        |
 | `GET /events`                              | 200                  | happy (público)                                         |

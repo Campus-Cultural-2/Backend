@@ -8,7 +8,7 @@ http:
   url: "{{baseUrl}}/users/{{studentId}}/profile-picture"
   headers:
     - name: accept
-      value: application/octet-stream
+      value: image/*
   body:
     type: none
   auth:
@@ -22,9 +22,9 @@ runtime:
         test("status is 200", function() {
           expect(res.status).to.equal(200);
         });
-        test("content-type is octet-stream", function() {
+        test("content-type is an image", function() {
           const ct = res.headers["content-type"] || res.headers["Content-Type"];
-          expect(ct).to.include("application/octet-stream");
+          expect(ct).to.include("image/");
         });
         test("body is non-empty", function() {
           expect(res.body).to.not.be.empty;
@@ -36,4 +36,7 @@ settings:
 docs: |-
   Baixa a foto previamente carregada para o estudante.
 
-  **Espera:** 200, `Content-Type: application/octet-stream` e body binário não vazio.
+  A API responde 307 apontando para o link da foto no Cloudinary; o Bruno
+  segue o redirect e baixa a imagem de lá.
+
+  **Espera:** 200, `Content-Type: image/...` e body não vazio.

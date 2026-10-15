@@ -1,0 +1,35 @@
+info:
+  name: Delete Profile Picture Not Found
+  type: http
+  seq: 10
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/users/{{studentId}}/profile-picture"
+  headers:
+    - name: accept
+      value: application/json
+  body:
+    type: none
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("status is 404", function() {
+          expect(res.status).to.equal(404);
+        });
+        test("error code is user_profile_picture_not_found", function() {
+          expect(res.body.code).to.equal("user_profile_picture_not_found");
+        });
+
+settings:
+  encodeUrl: true
+
+docs: |-
+  Remove de novo a foto que o request anterior já removeu.
+
+  **Espera:** 404 com `code: user_profile_picture_not_found`.

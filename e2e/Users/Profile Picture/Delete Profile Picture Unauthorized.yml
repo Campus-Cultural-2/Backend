@@ -1,0 +1,32 @@
+info:
+  name: Delete Profile Picture Unauthorized
+  type: http
+  seq: 7
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/users/{{studentId}}/profile-picture"
+  headers:
+    - name: accept
+      value: application/json
+  body:
+    type: none
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("status is 401", function() {
+          expect(res.status).to.equal(401);
+        });
+        test("error code is invalid_token", function() {
+          expect(res.body.code).to.equal("invalid_token");
+        });
+
+settings:
+  encodeUrl: true
+
+docs: |-
+  Remoção da foto sem token.
+
+  **Espera:** 401 com `code: invalid_token`.

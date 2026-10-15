@@ -11,6 +11,7 @@ from api.features.user.user_controller import router as user_router
 from api.features.user.user_repository import UserRepository
 from api.features.user.user_service import UserService
 from api.shared.exceptions import UnhandledExceptionMiddleware, register_exception_handlers
+from api.shared.image_storage import ImageStorage
 from database.config.session import DatabaseManager
 from database.config.settings import settings
 
@@ -25,7 +26,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
         app.state.database_manager = database_manager
         if settings.seed_default_admin:
             async with database_manager.session_factory() as session:
-                service = UserService(UserRepository(session))
+                service = UserService(UserRepository(session), ImageStorage())
                 await service.ensure_default_admin()
         yield
         await database_manager.dispose()

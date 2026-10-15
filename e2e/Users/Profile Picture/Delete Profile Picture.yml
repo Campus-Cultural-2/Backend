@@ -1,0 +1,33 @@
+info:
+  name: Delete Profile Picture
+  type: http
+  seq: 9
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/users/{{studentId}}/profile-picture"
+  headers:
+    - name: accept
+      value: application/json
+  body:
+    type: none
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("status is 204", function() {
+          expect(res.status).to.equal(204);
+        });
+
+settings:
+  encodeUrl: true
+
+docs: |-
+  O estudante remove a própria foto. A API limpa o link no banco e apaga a
+  imagem do Cloudinary. Precisa das variáveis `CLOUDINARY_*` no `.env`.
+
+  **Espera:** 204.

@@ -4,6 +4,7 @@ import asyncio
 
 import jwt
 from fastapi.testclient import TestClient
+from httpx import Response
 from pwdlib import PasswordHash
 
 from api.app import create_app
@@ -11,6 +12,7 @@ from api.features.user.user import User
 from api.features.user.user_repository import UserRepository
 from api.shared.security import create_access_token
 from database.config.settings import settings
+from tests.fakes import FakeImageStorage
 
 
 def student_payload() -> dict[str, object]:
@@ -24,6 +26,29 @@ def student_payload() -> dict[str, object]:
         "password": "secret",
         "birth_date": None,
     }
+
+
+def second_student_payload() -> dict[str, object]:
+    return {
+        **student_payload(),
+        "email": "ana@example.com",
+        "name": "Ana",
+        "ra": "2024002",
+    }
+
+
+def login_headers(client: TestClient, email: str, password: str) -> dict[str, str]:
+    response = client.post("/users/login", json={"email": email, "password": password})
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+def upload_profile_picture(client: TestClient, user_id: int, headers: dict[str, str]) -> Response:
+    return client.post(
+        f"/users/{user_id}/profile-picture",
+        headers={**headers, "Content-Type": "application/octet-stream"},
+        content=b"\x89PNG\r\n\x1a\nprofile-picture",
+    )
 
 
 def admin_auth_headers(client: TestClient) -> dict[str, str]:
@@ -49,6 +74,7 @@ def test_startup_creates_default_admin_user(client: TestClient) -> None:
             "is_active": True,
             "ra": None,
             "birth_date": None,
+            "profile_picture_url": None,
         }
     ]
 
@@ -117,6 +143,7 @@ def test_register_user_is_public_and_returns_created_user(client: TestClient) ->
         "is_active": True,
         "ra": "2024001",
         "birth_date": None,
+        "profile_picture_url": None,
     }
 
 
@@ -334,6 +361,7 @@ def test_list_users_returns_created_users(client: TestClient) -> None:
             "is_active": True,
             "ra": None,
             "birth_date": None,
+            "profile_picture_url": None,
         },
         {
             "id": 2,
@@ -344,6 +372,7 @@ def test_list_users_returns_created_users(client: TestClient) -> None:
             "is_active": True,
             "ra": "2024001",
             "birth_date": None,
+            "profile_picture_url": None,
         },
         {
             "id": 3,
@@ -354,6 +383,7 @@ def test_list_users_returns_created_users(client: TestClient) -> None:
             "is_active": True,
             "ra": None,
             "birth_date": None,
+            "profile_picture_url": None,
         },
     ]
 
@@ -395,12 +425,18 @@ def test_update_user_uses_id_from_url_and_returns_updated_user(client: TestClien
         "is_active": False,
         "ra": None,
         "birth_date": None,
+        "profile_picture_url": None,
     }
 
 
-def test_update_profile_picture_stores_binary_without_exposing_it(client: TestClient) -> None:
+def test_update_profile_picture_uploads_image_and_stores_its_url(
+    client: TestClient, image_storage: FakeImageStorage
+) -> None:
     created = client.post("/users/register", json=student_payload()).json()
     image_bytes = b"\x89PNG\r\n\x1a\nprofile-picture"
+    expected_url = (
+        "https://res.cloudinary.com/test/image/upload/campus_cultural/profile_pictures/1.png"
+    )
 
     response = client.post(
         f"/users/{created['id']}/profile-picture",
@@ -411,18 +447,19 @@ def test_update_profile_picture_stores_binary_without_exposing_it(client: TestCl
         content=image_bytes,
     )
 
-    async def get_profile_picture() -> bytes | None:
+    async def get_stored_profile_picture() -> tuple[str | None, str | None]:
         async with client.app.state.database_manager.session_factory() as session:
             user = await session.get(User, created["id"])
             assert user is not None
-            return user.profile_picture
+            return user.profile_picture_url, user.profile_picture_public_id
 
-    stored_profile_picture = asyncio.run(get_profile_picture())
+    stored_url, stored_public_id = asyncio.run(get_stored_profile_picture())
 
     assert response.status_code == 200
-    assert response.json() == created
-    assert "profile_picture" not in response.json()
-    assert stored_profile_picture == image_bytes
+    assert response.json() == {**created, "profile_picture_url": expected_url}
+    assert image_storage.uploads == [(image_bytes, "campus_cultural/profile_pictures")]
+    assert stored_url == expected_url
+    assert stored_public_id == "campus_cultural/profile_pictures/1"
 
 
 def test_update_profile_picture_requires_bearer_token(client: TestClient) -> None:
@@ -441,24 +478,44 @@ def test_update_profile_picture_requires_bearer_token(client: TestClient) -> Non
     }
 
 
-def test_get_profile_picture_returns_binary_data(client: TestClient) -> None:
+def test_update_profile_picture_with_empty_body_does_not_upload(
+    client: TestClient, image_storage: FakeImageStorage
+) -> None:
     created = client.post("/users/register", json=student_payload()).json()
-    image_bytes = b"\x89PNG\r\n\x1a\nprofile-picture"
+
+    response = client.post(
+        f"/users/{created['id']}/profile-picture",
+        headers={
+            **admin_auth_headers(client),
+            "Content-Type": "application/octet-stream",
+        },
+        content=b"",
+    )
+
+    assert response.status_code == 422
+    assert image_storage.uploads == []
+
+
+def test_get_profile_picture_redirects_to_image_url(client: TestClient) -> None:
+    created = client.post("/users/register", json=student_payload()).json()
     headers = admin_auth_headers(client)
-    client.post(
+    uploaded = client.post(
         f"/users/{created['id']}/profile-picture",
         headers={
             **headers,
             "Content-Type": "application/octet-stream",
         },
-        content=image_bytes,
+        content=b"\x89PNG\r\n\x1a\nprofile-picture",
+    ).json()
+
+    response = client.get(
+        f"/users/{created['id']}/profile-picture",
+        headers=headers,
+        follow_redirects=False,
     )
 
-    response = client.get(f"/users/{created['id']}/profile-picture", headers=headers)
-
-    assert response.status_code == 200
-    assert response.headers["content-type"] == "application/octet-stream"
-    assert response.content == image_bytes
+    assert response.status_code == 307
+    assert response.headers["location"] == uploaded["profile_picture_url"]
 
 
 def test_get_profile_picture_returns_not_found_when_missing(client: TestClient) -> None:
@@ -475,6 +532,137 @@ def test_get_profile_picture_returns_not_found_when_missing(client: TestClient) 
         "message": f"User {created['id']} profile picture not found",
         "details": {"user_id": created["id"]},
     }
+
+
+def test_update_profile_picture_replaces_it_and_deletes_the_old_one(
+    client: TestClient, image_storage: FakeImageStorage
+) -> None:
+    created = client.post("/users/register", json=student_payload()).json()
+    headers = admin_auth_headers(client)
+
+    upload_profile_picture(client, created["id"], headers)
+    response = upload_profile_picture(client, created["id"], headers)
+
+    assert response.status_code == 200
+    assert response.json()["profile_picture_url"] == (
+        "https://res.cloudinary.com/test/image/upload/campus_cultural/profile_pictures/2.png"
+    )
+    assert image_storage.deleted == ["campus_cultural/profile_pictures/1"]
+
+
+def test_student_can_update_own_profile_picture(client: TestClient) -> None:
+    created = client.post("/users/register", json=student_payload()).json()
+
+    response = upload_profile_picture(
+        client, created["id"], login_headers(client, "diego@example.com", "secret")
+    )
+
+    assert response.status_code == 200
+
+
+def test_update_profile_picture_of_another_user_is_forbidden(
+    client: TestClient, image_storage: FakeImageStorage
+) -> None:
+    other = client.post("/users/register", json=second_student_payload()).json()
+    client.post("/users/register", json=student_payload())
+
+    response = upload_profile_picture(
+        client, other["id"], login_headers(client, "diego@example.com", "secret")
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "code": "permission_denied",
+        "message": "Only the user or an admin can change this profile picture",
+    }
+    assert image_storage.uploads == []
+
+
+def test_delete_profile_picture_removes_it_from_storage(
+    client: TestClient, image_storage: FakeImageStorage
+) -> None:
+    created = client.post("/users/register", json=student_payload()).json()
+    headers = admin_auth_headers(client)
+    upload_profile_picture(client, created["id"], headers)
+
+    response = client.delete(f"/users/{created['id']}/profile-picture", headers=headers)
+
+    assert response.status_code == 204
+    assert image_storage.deleted == ["campus_cultural/profile_pictures/1"]
+    user = client.get(f"/users/{created['id']}", headers=headers).json()
+    assert user["profile_picture_url"] is None
+    picture = client.get(f"/users/{created['id']}/profile-picture", headers=headers)
+    assert picture.status_code == 404
+
+
+def test_student_can_delete_own_profile_picture(
+    client: TestClient, image_storage: FakeImageStorage
+) -> None:
+    created = client.post("/users/register", json=student_payload()).json()
+    headers = login_headers(client, "diego@example.com", "secret")
+    upload_profile_picture(client, created["id"], headers)
+
+    response = client.delete(f"/users/{created['id']}/profile-picture", headers=headers)
+
+    assert response.status_code == 204
+    assert image_storage.deleted == ["campus_cultural/profile_pictures/1"]
+
+
+def test_delete_profile_picture_of_another_user_is_forbidden(
+    client: TestClient, image_storage: FakeImageStorage
+) -> None:
+    other = client.post("/users/register", json=second_student_payload()).json()
+    upload_profile_picture(client, other["id"], admin_auth_headers(client))
+    client.post("/users/register", json=student_payload())
+
+    response = client.delete(
+        f"/users/{other['id']}/profile-picture",
+        headers=login_headers(client, "diego@example.com", "secret"),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "permission_denied"
+    assert image_storage.deleted == []
+
+
+def test_delete_profile_picture_returns_not_found_when_missing(
+    client: TestClient, image_storage: FakeImageStorage
+) -> None:
+    created = client.post("/users/register", json=student_payload()).json()
+
+    response = client.delete(
+        f"/users/{created['id']}/profile-picture",
+        headers=admin_auth_headers(client),
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "code": "user_profile_picture_not_found",
+        "message": f"User {created['id']} profile picture not found",
+        "details": {"user_id": created["id"]},
+    }
+    assert image_storage.deleted == []
+
+
+def test_delete_profile_picture_requires_bearer_token(client: TestClient) -> None:
+    created = client.post("/users/register", json=student_payload()).json()
+
+    response = client.delete(f"/users/{created['id']}/profile-picture")
+
+    assert response.status_code == 401
+
+
+def test_delete_user_deletes_profile_picture_from_storage(
+    client: TestClient, image_storage: FakeImageStorage
+) -> None:
+    created = client.post("/users/register", json=student_payload()).json()
+    headers = admin_auth_headers(client)
+    upload_profile_picture(client, created["id"], headers)
+
+    response = client.delete(f"/users/{created['id']}", headers=headers)
+
+    assert response.status_code == 204
+    assert image_storage.deleted == ["campus_cultural/profile_pictures/1"]
 
 
 def test_delete_user_removes_resource(client: TestClient) -> None:

@@ -25,9 +25,21 @@ class Settings(BaseSettings):
     # Origens liberadas para o CORS, separadas por vírgula.
     cors_origins: str = "*"
 
+    # Cloudinary, onde ficam as imagens (banner dos eventos e foto de perfil).
+    # Os valores estão no painel do Cloudinary, em Settings > API Keys.
+    cloudinary_cloud_name: str = ""
+    cloudinary_api_key: str = ""
+    cloudinary_api_secret: str = ""
+
     @property
     def is_production(self) -> bool:
         return self.environment.lower() == "production"
+
+    @property
+    def is_cloudinary_configured(self) -> bool:
+        return all(
+            (self.cloudinary_cloud_name, self.cloudinary_api_key, self.cloudinary_api_secret)
+        )
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -59,6 +71,12 @@ class Settings(BaseSettings):
 
         if "*" in self.cors_origins_list:
             errors.append("CORS_ORIGINS não pode ser '*' em produção.")
+
+        if not self.is_cloudinary_configured:
+            errors.append(
+                "CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY e CLOUDINARY_API_SECRET precisam "
+                "estar preenchidas. Sem elas o upload de imagens não funciona."
+            )
 
         if errors:
             raise ValueError("Configuração de produção inválida:\n  - " + "\n  - ".join(errors))

@@ -23,6 +23,9 @@ class ErrorCode(StrEnum):
     EVENT_NOT_FOUND = "event_not_found"
     EVENT_ALREADY_SUBSCRIBED = "event_already_subscribed"
     EVENT_SUBSCRIPTION_NOT_FOUND = "event_subscription_not_found"
+    INVALID_IMAGE = "invalid_image"
+    IMAGE_STORAGE_UNAVAILABLE = "image_storage_unavailable"
+    PERMISSION_DENIED = "permission_denied"
 
 
 class AppError(Exception):
@@ -98,6 +101,22 @@ class UnauthorizedError(AppError):
         )
 
 
+class ForbiddenError(AppError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: ErrorCode,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(
+            message,
+            code=code,
+            status_code=status.HTTP_403_FORBIDDEN,
+            details=details,
+        )
+
+
 class BadRequestError(AppError):
     def __init__(
         self,
@@ -110,6 +129,22 @@ class BadRequestError(AppError):
             message,
             code=code,
             status_code=status.HTTP_400_BAD_REQUEST,
+            details=details,
+        )
+
+
+class ServiceUnavailableError(AppError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: ErrorCode,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(
+            message,
+            code=code,
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             details=details,
         )
 

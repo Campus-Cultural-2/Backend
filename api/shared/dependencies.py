@@ -16,6 +16,7 @@ from api.features.user.user import User
 from api.features.user.user_repository import UserRepository
 from api.features.user.user_service import UserService
 from api.shared.exceptions import ErrorCode, ResourceNotFoundError, UnauthorizedError
+from api.shared.image_storage import ImageStorage
 from api.shared.security import decode_access_token
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -26,18 +27,24 @@ async def get_db_session(request: Request) -> AsyncGenerator[AsyncSession, None]
         yield session
 
 
+def get_image_storage() -> ImageStorage:
+    return ImageStorage()
+
+
 def get_user_service(
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    image_storage: Annotated[ImageStorage, Depends(get_image_storage)],
 ) -> UserService:
     repository = UserRepository(session)
-    return UserService(repository)
+    return UserService(repository, image_storage)
 
 
 def get_event_service(
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    image_storage: Annotated[ImageStorage, Depends(get_image_storage)],
 ) -> EventService:
     repository = EventRepository(session)
-    return EventService(repository)
+    return EventService(repository, image_storage)
 
 
 def get_subscription_service(
