@@ -1,0 +1,42 @@
+info:
+  name: Deactivate Student
+  type: http
+  seq: 14
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/users/{{studentId}}/status"
+  headers:
+    - name: accept
+      value: application/json
+    - name: content-type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "is_active": false
+      }
+  auth:
+    type: bearer
+    token: "{{adminToken}}"
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("status is 200", function() {
+          expect(res.status).to.equal(200);
+        });
+        test("student is inactive", function() {
+          expect(String(res.body.id)).to.equal(bru.getVar("studentId"));
+          expect(res.body.is_active).to.equal(false);
+        });
+
+settings:
+  encodeUrl: true
+
+docs: |-
+  Admin desativa o estudante. O request seguinte reativa, para o resto do run continuar usando `authToken`.
+
+  **Espera:** 200 com `is_active: false`.

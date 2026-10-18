@@ -13,7 +13,7 @@ http:
     type: none
   auth:
     type: bearer
-    token: "{{authToken}}"
+    token: "{{adminToken}}"
 
 runtime:
   scripts:
@@ -36,6 +36,6 @@ settings:
   encodeUrl: true
 
 docs: |-
-  Lista todos os usuários (rota protegida).
+  Lista todos os usuários usando `adminToken` (rota exclusiva de professores e admins).
 
   **Espera:** 200, body como array não vazio contendo o estudante seedado (`studentId`).

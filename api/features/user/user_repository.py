@@ -24,8 +24,15 @@ class UserRepository:
         await self.session.refresh(user)
         return user
 
-    async def list_all(self) -> list[User]:
-        result = await self.session.scalars(select(User).order_by(User.id))
+    async def list_all(
+        self, *, role: UserRole | None = None, is_active: bool | None = None
+    ) -> list[User]:
+        statement = select(User).order_by(User.id)
+        if role is not None:
+            statement = statement.where(User.role == role)
+        if is_active is not None:
+            statement = statement.where(User.is_active == is_active)
+        result = await self.session.scalars(statement)
         return list(result)
 
     async def get_by_id(self, user_id: int) -> User | None:
