@@ -1,15 +1,43 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import StrEnum
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    false,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database.config.base import Base
 
 
+class HoursGroup(StrEnum):
+    """Grupo das atividades complementares em que as horas do certificado contam."""
+
+    # Complementacao da formacao social, humana e cultural.
+    GROUP_1 = "group_1"
+    # Atividades de cunho comunitario e de interesse coletivo.
+    GROUP_2 = "group_2"
+    # Iniciacao cientifica, tecnologica e formacao profissional.
+    GROUP_3 = "group_3"
+
+
 class Event(Base):
     __tablename__ = "events"
+    __table_args__ = (
+        CheckConstraint(
+            "workload_hours IS NULL OR workload_hours > 0",
+            name="ck_events_workload_hours_positive",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -22,3 +50,16 @@ class Event(Base):
     event_datetime: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     event_location: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    has_certificate: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    # Carga horaria do certificado, em horas.
+    workload_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    hours_group: Mapped[HoursGroup | None] = mapped_column(
+        Enum(
+            HoursGroup,
+            native_enum=False,
+            values_callable=lambda enum_class: [member.value for member in enum_class],
+        ),
+        nullable=True,
+    )

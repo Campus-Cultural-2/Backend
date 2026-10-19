@@ -4,12 +4,18 @@ from datetime import datetime
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
+from api.features.event.event import HoursGroup
+
 
 class EventBaseSchema(BaseModel):
     name: str
     event_datetime: datetime
     event_location: str
     description: str
+    has_certificate: bool = False
+    # Carga horaria e grupo de horas so existem quando o evento tem certificado.
+    workload_hours: int | None = Field(default=None, ge=1)
+    hours_group: HoursGroup | None = None
 
 
 class EventCreateIn(EventBaseSchema):
@@ -41,7 +47,10 @@ class EventUpdateIn(BaseModel):
     event_datetime: datetime | None = None
     name: str | None = None
     description: str | None = None
-    event_location: str | None = None  # ← add this
+    event_location: str | None = None
+    has_certificate: bool | None = None
+    workload_hours: int | None = Field(default=None, ge=1)
+    hours_group: HoursGroup | None = None
 
 
 class EventUpdateOut(EventOutSchema):

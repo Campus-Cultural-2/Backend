@@ -35,6 +35,8 @@ runtime:
         });
         test("untouched fields preserved", function() {
           expect(res.body.event_location).to.equal("Laboratório de Informática");
+          expect(res.body.has_certificate).to.equal(true);
+          expect(res.body.workload_hours).to.equal(4);
         });
 
 settings:
@@ -43,4 +45,4 @@ settings:
 docs: |-
   Partial update — envia só `name` e `description`.
 
-  **Espera:** 200, os dois campos atualizados e `event_location` preservado (não enviado).
+  **Espera:** 200, os dois campos atualizados e `event_location`/informações de certificado preservados (não enviados).

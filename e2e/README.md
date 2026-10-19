@@ -27,7 +27,7 @@ cd e2e
 bru run -r . --env Local
 ```
 
-Saída esperada (estado verde): **50 requests / 113 tests** passando.
+Saída esperada (estado verde): **50 requests / 114 tests** passando.
 
 ### Subconjuntos úteis
 
