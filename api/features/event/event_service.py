@@ -5,7 +5,12 @@ from api.features.event.event import Event
 from api.features.event.event_repository import EventRepository
 from api.features.event.event_schemas import EventCreateIn, EventUpdateIn
 from api.features.user.user import User
-from api.shared.exceptions import BadRequestError, ErrorCode, ResourceNotFoundError
+from api.shared.exceptions import (
+    BadRequestError,
+    ConflictError,
+    ErrorCode,
+    ResourceNotFoundError,
+)
 from api.shared.image_storage import EVENT_IMAGES_FOLDER, ImageStorage, StoredImage
 
 
@@ -58,6 +63,8 @@ class EventService:
             )
 
         update_data = payload.model_dump(exclude_unset=True)
+        if "max_participants" in update_data:
+            _ensure_limit_fits_subscribers(event, update_data["max_participants"])
 
         # Sem o campo image no payload, a imagem atual continua como esta.
         # Com image nulo, o evento fica sem imagem.
@@ -96,6 +103,18 @@ class EventService:
         if not image:
             return None
         return await self.image_storage.upload(_decode_base64_image(image), EVENT_IMAGES_FOLDER)
+
+
+def _ensure_limit_fits_subscribers(event: Event, max_participants: int | None) -> None:
+    if max_participants is not None and max_participants < event.subscribers_count:
+        raise ConflictError(
+            "Participant limit cannot be lower than the current number of subscribers",
+            code=ErrorCode.EVENT_LIMIT_BELOW_SUBSCRIBERS,
+            details={
+                "max_participants": max_participants,
+                "subscribers_count": event.subscribers_count,
+            },
+        )
 
 
 def _set_image(event: Event, image: StoredImage | None) -> None:

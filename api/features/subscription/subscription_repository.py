@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.features.event.event import Event
@@ -17,6 +17,12 @@ class SubscriptionRepository:
             EventSubscription.event_id == event_id,
         )
         return await self.session.scalar(statement)
+
+    async def count_by_event(self, event_id: int) -> int:
+        statement = select(func.count(EventSubscription.id)).where(
+            EventSubscription.event_id == event_id
+        )
+        return await self.session.scalar(statement) or 0
 
     async def create(self, subscription: EventSubscription) -> EventSubscription:
         self.session.add(subscription)
