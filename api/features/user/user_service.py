@@ -17,6 +17,9 @@ from api.shared.security import create_access_token
 
 password_hash = PasswordHash.recommended()
 
+# Papeis com acesso ao gerenciamento de usuarios.
+MANAGER_ROLES = frozenset({UserRole.PROFESSOR, UserRole.ADMIN})
+
 
 class UserService:
     def __init__(self, repository: UserRepository, image_storage: ImageStorage) -> None:
@@ -70,8 +73,15 @@ class UserService:
         )
         return await self.repository.create(user)
 
-    async def list_all(self) -> list[User]:
-        return await self.repository.list_all()
+    async def list_all(
+        self,
+        current_user: User,
+        *,
+        role: UserRole | None = None,
+        is_active: bool | None = None,
+    ) -> list[User]:
+        _ensure_is_manager(current_user)
+        return await self.repository.list_all(role=role, is_active=is_active)
 
     async def get_by_id(self, user_id: int) -> User:
         user = await self.repository.get_by_id(user_id)
@@ -83,11 +93,30 @@ class UserService:
             )
         return user
 
-    async def update(self, user_id: int, payload: UserUpdateIn) -> User:
+    async def get_visible_by_id(self, user_id: int, current_user: User) -> User:
+        if current_user.id != user_id:
+            _ensure_is_manager(current_user)
+        return await self.get_by_id(user_id)
+
+    async def update(self, user_id: int, payload: UserUpdateIn, current_user: User) -> User:
         user = await self.get_by_id(user_id)
+        if current_user.id == user.id:
+            _ensure_keeps_own_access(user, payload)
+        else:
+            _ensure_can_manage(user, current_user)
+            if payload.role == UserRole.ADMIN and current_user.role != UserRole.ADMIN:
+                raise _admin_only_error()
+
         for field, value in payload.model_dump(exclude={"password"}).items():
             setattr(user, field, value)
-        user.password_hash = password_hash.hash(payload.password)
+        if payload.password is not None:
+            user.password_hash = password_hash.hash(payload.password)
+        return await self.repository.update(user)
+
+    async def set_active(self, user_id: int, is_active: bool, current_user: User) -> User:
+        user = await self.get_by_id(user_id)
+        _ensure_can_manage(user, current_user)
+        user.is_active = is_active
         return await self.repository.update(user)
 
     async def update_profile_picture(
@@ -126,14 +155,51 @@ class UserService:
             raise _profile_picture_not_found(user_id)
         return user.profile_picture_url
 
-    async def delete(self, user_id: int) -> None:
+    async def delete(self, user_id: int, current_user: User) -> None:
         user = await self.get_by_id(user_id)
+        _ensure_can_manage(user, current_user)
         profile_picture_public_id = user.profile_picture_public_id
         await self.repository.delete(user)
 
         # So depois de excluir o usuario: a foto dele nao e mais usada.
         if profile_picture_public_id:
             await self.image_storage.delete(profile_picture_public_id)
+
+
+def _ensure_is_manager(current_user: User) -> None:
+    if current_user.role not in MANAGER_ROLES:
+        raise ForbiddenError(
+            "Only professors and admins can manage users",
+            code=ErrorCode.PERMISSION_DENIED,
+        )
+
+
+def _ensure_can_manage(user: User, current_user: User) -> None:
+    _ensure_is_manager(current_user)
+    # Impede que um gestor se desative ou se exclua e perca o proprio acesso.
+    if current_user.id == user.id:
+        raise ForbiddenError(
+            "Users cannot manage their own account",
+            code=ErrorCode.PERMISSION_DENIED,
+        )
+    if user.role == UserRole.ADMIN and current_user.role != UserRole.ADMIN:
+        raise _admin_only_error()
+
+
+def _ensure_keeps_own_access(user: User, payload: UserUpdateIn) -> None:
+    # Pelo proprio perfil o usuario edita os dados dele, mas nao o papel nem o status.
+    if payload.role != user.role or payload.is_active != user.is_active:
+        raise ForbiddenError(
+            "Users cannot change their own role or status",
+            code=ErrorCode.PERMISSION_DENIED,
+        )
+
+
+def _admin_only_error() -> ForbiddenError:
+    return ForbiddenError(
+        "Only admins can manage admin users",
+        code=ErrorCode.PERMISSION_DENIED,
+    )
 
 
 def _ensure_can_change_profile_picture(user: User, current_user: User) -> None:
