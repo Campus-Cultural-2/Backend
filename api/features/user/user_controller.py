@@ -2,16 +2,17 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, Response, status
+from fastapi import APIRouter, Body, Depends, Query, Response, status
 from fastapi.responses import RedirectResponse
 
-from api.features.user.user import User
+from api.features.user.user import User, UserRole
 from api.features.user.user_schemas import (
     TokenOut,
     UserCreateIn,
     UserCreateOut,
     UserLoginIn,
     UserReadOut,
+    UserStatusUpdateIn,
     UserUpdateIn,
     UserUpdateOut,
 )
@@ -49,8 +50,10 @@ async def refresh_token(
 async def list_users(
     current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[UserService, Depends(get_user_service)],
+    role: Annotated[UserRole | None, Query()] = None,
+    is_active: Annotated[bool | None, Query()] = None,
 ) -> list[UserReadOut]:
-    users: list[User] = await service.list_all()
+    users: list[User] = await service.list_all(current_user, role=role, is_active=is_active)
     users_dto = []
     for user in users:
         users_dto.append(UserReadOut.model_validate(user))
@@ -63,7 +66,7 @@ async def get_user(
     current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[UserService, Depends(get_user_service)],
 ) -> UserReadOut:
-    return UserReadOut.model_validate(await service.get_by_id(user_id))
+    return UserReadOut.model_validate(await service.get_visible_by_id(user_id, current_user))
 
 
 @router.put("/{user_id}", response_model=UserUpdateOut)
@@ -73,7 +76,19 @@ async def update_user(
     current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[UserService, Depends(get_user_service)],
 ) -> UserUpdateOut:
-    return UserUpdateOut.model_validate(await service.update(user_id, payload))
+    return UserUpdateOut.model_validate(await service.update(user_id, payload, current_user))
+
+
+@router.patch("/{user_id}/status", response_model=UserReadOut)
+async def update_user_status(
+    user_id: int,
+    payload: UserStatusUpdateIn,
+    current_user: Annotated[User, Depends(get_current_user)],
+    service: Annotated[UserService, Depends(get_user_service)],
+) -> UserReadOut:
+    return UserReadOut.model_validate(
+        await service.set_active(user_id, payload.is_active, current_user)
+    )
 
 
 @router.post("/{user_id}/profile-picture", response_model=UserReadOut)
@@ -117,5 +132,5 @@ async def delete_user(
     current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[UserService, Depends(get_user_service)],
 ) -> Response:
-    await service.delete(user_id)
+    await service.delete(user_id, current_user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

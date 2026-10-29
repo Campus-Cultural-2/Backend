@@ -52,7 +52,12 @@ class UserReadOut(UserBaseSchema):
 
 
 class UserUpdateIn(UserBaseSchema):
-    password: str
+    # Sem senha, a senha atual e mantida.
+    password: str | None = None
+
+
+class UserStatusUpdateIn(BaseModel):
+    is_active: bool
 
 
 class UserUpdateOut(UserBaseSchema):
