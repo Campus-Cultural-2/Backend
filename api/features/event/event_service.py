@@ -1,11 +1,16 @@
 import base64
 import binascii
 
-from api.features.event.event import Event
+from api.features.event.event import Event, HoursGroup
 from api.features.event.event_repository import EventRepository
 from api.features.event.event_schemas import EventCreateIn, EventUpdateIn
 from api.features.user.user import User
-from api.shared.exceptions import BadRequestError, ErrorCode, ResourceNotFoundError
+from api.shared.exceptions import (
+    BadRequestError,
+    ConflictError,
+    ErrorCode,
+    ResourceNotFoundError,
+)
 from api.shared.image_storage import EVENT_IMAGES_FOLDER, ImageStorage, StoredImage
 
 
@@ -16,6 +21,9 @@ class EventService:
 
     async def create(self, payload: EventCreateIn, user: User) -> Event:
         event_data = payload.model_dump(exclude={"image"})
+        _ensure_valid_certificate_info(
+            payload.has_certificate, payload.workload_hours, payload.hours_group
+        )
 
         # vínculo com usuário
         event_data["user_id"] = user.id
@@ -58,6 +66,17 @@ class EventService:
             )
 
         update_data = payload.model_dump(exclude_unset=True)
+        if update_data.get("has_certificate") is False:
+            # Ao tirar o certificado, a carga horaria e o grupo deixam de valer.
+            update_data.setdefault("workload_hours", None)
+            update_data.setdefault("hours_group", None)
+        _ensure_valid_certificate_info(
+            update_data.get("has_certificate", event.has_certificate),
+            update_data.get("workload_hours", event.workload_hours),
+            update_data.get("hours_group", event.hours_group),
+        )
+        if "max_participants" in update_data:
+            _ensure_limit_fits_subscribers(event, update_data["max_participants"])
 
         # Sem o campo image no payload, a imagem atual continua como esta.
         # Com image nulo, o evento fica sem imagem.
@@ -96,6 +115,40 @@ class EventService:
         if not image:
             return None
         return await self.image_storage.upload(_decode_base64_image(image), EVENT_IMAGES_FOLDER)
+
+
+def _ensure_valid_certificate_info(
+    has_certificate: bool | None,
+    workload_hours: int | None,
+    hours_group: HoursGroup | None,
+) -> None:
+    if has_certificate is None:
+        raise BadRequestError(
+            "has_certificate cannot be null",
+            code=ErrorCode.INVALID_CERTIFICATE_INFO,
+        )
+    if has_certificate and (workload_hours is None or hours_group is None):
+        raise BadRequestError(
+            "Events with certificate must have workload_hours and hours_group",
+            code=ErrorCode.INVALID_CERTIFICATE_INFO,
+        )
+    if not has_certificate and (workload_hours is not None or hours_group is not None):
+        raise BadRequestError(
+            "Events without certificate cannot have workload_hours or hours_group",
+            code=ErrorCode.INVALID_CERTIFICATE_INFO,
+        )
+
+
+def _ensure_limit_fits_subscribers(event: Event, max_participants: int | None) -> None:
+    if max_participants is not None and max_participants < event.subscribers_count:
+        raise ConflictError(
+            "Participant limit cannot be lower than the current number of subscribers",
+            code=ErrorCode.EVENT_LIMIT_BELOW_SUBSCRIBERS,
+            details={
+                "max_participants": max_participants,
+                "subscribers_count": event.subscribers_count,
+            },
+        )
 
 
 def _set_image(event: Event, image: StoredImage | None) -> None:
