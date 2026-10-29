@@ -23,6 +23,8 @@ class ErrorCode(StrEnum):
     EVENT_NOT_FOUND = "event_not_found"
     EVENT_ALREADY_SUBSCRIBED = "event_already_subscribed"
     EVENT_SUBSCRIPTION_NOT_FOUND = "event_subscription_not_found"
+    EVENT_FULL = "event_full"
+    EVENT_LIMIT_BELOW_SUBSCRIBERS = "event_limit_below_subscribers"
     INVALID_IMAGE = "invalid_image"
     IMAGE_STORAGE_UNAVAILABLE = "image_storage_unavailable"
     PERMISSION_DENIED = "permission_denied"

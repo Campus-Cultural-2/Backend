@@ -40,6 +40,7 @@ erDiagram
         datetime start_at
         string location
         string description
+        int max_participants "nullable"
     }
 
     EVENT_SUBSCRIPTION {
@@ -83,11 +84,13 @@ Recommended rule:
 | `start_at` | `datetime` | not null |
 | `location` | `str` | not null |
 | `description` | `str` | not null |
+| `max_participants` | `int` | nullable, greater than 0; null means no participant limit |
 
 Meaning:
 
 - Each event is created by one user.
 - One user can create many events.
+- When `max_participants` is set, subscriptions are refused once the event reaches it.
 
 ### `event_subscriptions`
 
