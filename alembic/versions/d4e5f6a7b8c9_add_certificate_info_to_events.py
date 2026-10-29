@@ -1,7 +1,7 @@
 """add certificate info to events
 
 Revision ID: d4e5f6a7b8c9
-Revises: 9d706e24796a
+Revises: c7d8e9f0a1b2
 Create Date: 2026-10-18 21:00:00.000000
 """
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "d4e5f6a7b8c9"
-down_revision = "9d706e24796a"
+down_revision = "c7d8e9f0a1b2"
 branch_labels = None
 depends_on = None
 
