@@ -27,7 +27,7 @@ cd e2e
 bru run -r . --env Local
 ```
 
-Saída esperada (estado verde): **50 requests / 114 tests** passando.
+Saída esperada (estado verde): **53 requests / 121 tests** passando.
 
 ### Subconjuntos úteis
 
@@ -55,7 +55,7 @@ e2e/
 │   └── Health Check.yml
 ├── Users/
 │   ├── Auth/                     # register, login, refresh-token (happy + erros)
-│   ├── CRUD/                     # list, get, update, delete (happy + erros)
+│   ├── CRUD/                     # list, get, update, status, delete (happy + erros)
 │   └── Profile Picture/          # upload/download/remoção (happy + erros)
 ├── Events/                       # create, list, get, update, delete (happy + erros)
 └── Cleanup/

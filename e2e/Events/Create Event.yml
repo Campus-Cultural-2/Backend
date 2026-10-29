@@ -22,6 +22,7 @@ http:
         "has_certificate": true,
         "workload_hours": 4,
         "hours_group": "group_1",
+        "max_participants": 50,
         "image": null
       }
   auth:
@@ -49,6 +50,12 @@ runtime:
           expect(res.body.workload_hours).to.equal(4);
           expect(res.body.hours_group).to.equal("group_1");
         });
+        test("body has participant limit and no subscribers", function() {
+          expect(res.body.max_participants).to.equal(50);
+          expect(res.body.subscribers_count).to.equal(0);
+          expect(res.body.available_spots).to.equal(50);
+          expect(res.body.is_full).to.equal(false);
+        });
         bru.setVar("eventId", String(res.body.id));
 
 settings:
@@ -57,6 +64,6 @@ settings:
 docs: |-
   Cria um evento como o estudante autenticado.
 
-  **Espera:** 201, body ecoando `name`/`event_location`/`description` mais `id` e `created_at`, e as informações de certificado (4 horas no `group_1`).
+  **Espera:** 201, body ecoando `name`/`event_location`/`description` mais `id` e `created_at`, o limite de 50 participantes com todas as vagas livres e as informações de certificado (4 horas no `group_1`).
 
   Armazena `eventId` para uso pelos próximos requests da pasta.
