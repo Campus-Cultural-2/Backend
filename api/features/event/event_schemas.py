@@ -4,12 +4,20 @@ from datetime import datetime
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
+from api.features.event.event import HoursGroup
+
 
 class EventBaseSchema(BaseModel):
     name: str
     event_datetime: datetime
     event_location: str
     description: str
+    has_certificate: bool = False
+    # Carga horaria e grupo de horas so existem quando o evento tem certificado.
+    workload_hours: int | None = Field(default=None, ge=1)
+    hours_group: HoursGroup | None = None
+    # Sem limite quando nulo.
+    max_participants: int | None = Field(default=None, ge=1)
 
 
 class EventCreateIn(EventBaseSchema):
@@ -26,6 +34,10 @@ class EventOutSchema(EventBaseSchema):
     # Link da imagem no Cloudinary. No banco a coluna se chama image_url; na
     # API o campo continua sendo image, que e o nome que o app ja usa.
     image: str | None = Field(default=None, validation_alias=AliasChoices("image_url", "image"))
+    subscribers_count: int
+    # Nulo quando o evento nao tem limite de participantes.
+    available_spots: int | None
+    is_full: bool
 
 
 class EventCreateOut(EventOutSchema):
@@ -41,7 +53,12 @@ class EventUpdateIn(BaseModel):
     event_datetime: datetime | None = None
     name: str | None = None
     description: str | None = None
-    event_location: str | None = None  # ← add this
+    event_location: str | None = None
+    has_certificate: bool | None = None
+    workload_hours: int | None = Field(default=None, ge=1)
+    hours_group: HoursGroup | None = None
+    # Com max_participants nulo, o evento fica sem limite.
+    max_participants: int | None = Field(default=None, ge=1)
 
 
 class EventUpdateOut(EventOutSchema):

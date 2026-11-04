@@ -22,7 +22,7 @@ class SubscriptionService:
         self.event_repository = event_repository
 
     async def subscribe(self, event_id: int, user: User) -> EventSubscription:
-        event = await self.event_repository.get_by_id(event_id)
+        event = await self.event_repository.get_by_id_for_update(event_id)
         if event is None:
             raise ResourceNotFoundError(
                 f"Event {event_id} not found",
@@ -37,6 +37,18 @@ class SubscriptionService:
                 code=ErrorCode.EVENT_ALREADY_SUBSCRIBED,
                 details={"event_id": event_id},
             )
+
+        if event.max_participants is not None:
+            subscribers_count = await self.repository.count_by_event(event_id)
+            if subscribers_count >= event.max_participants:
+                raise ConflictError(
+                    "Event has reached its participant limit",
+                    code=ErrorCode.EVENT_FULL,
+                    details={
+                        "event_id": event_id,
+                        "max_participants": event.max_participants,
+                    },
+                )
 
         subscription = EventSubscription(user_id=user.id, event_id=event_id)
         return await self.repository.create(subscription)

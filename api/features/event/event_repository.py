@@ -23,6 +23,11 @@ class EventRepository:
     async def get_by_id(self, event_id: int) -> Event | None:
         return await self.session.get(Event, event_id)
 
+    async def get_by_id_for_update(self, event_id: int) -> Event | None:
+        # Trava a linha do evento ate o commit, para duas inscricoes
+        # simultaneas nao passarem do limite. O SQLite ignora o FOR UPDATE.
+        return await self.session.get(Event, event_id, with_for_update=True)
+
     async def get_by_user_id(self, user_id: int) -> list[Event]:
         statement = select(Event).where(Event.user_id == user_id).order_by(Event.id)
         result = await self.session.scalars(statement)
