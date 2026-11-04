@@ -136,7 +136,15 @@ git push -u origin feat/inscricao-em-evento
 
 O GitHub mostra um botão "Compare & pull request" depois do push.
 
-Na descrição, diga o que mudou, por quê, e como o revisor pode testar. Duas frases bastam.
+O GitHub preenche a descrição sozinho com o template em
+[`.github/pull_request_template.md`](.github/pull_request_template.md). Diga o que
+mudou, por quê, e como o revisor pode testar.
+
+**Avise no corpo da PR quando a mudança for destrutiva** — migration que apaga ou
+renomeia coluna, remoção de rota, troca de formato de dado. O comentário no código
+não basta: quem revisa lê a descrição primeiro, e em produção não existe backup
+automático. O procedimento de recuperação está em
+[`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
 ### 8. Espere o CI e peça review
 
