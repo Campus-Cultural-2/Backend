@@ -85,3 +85,18 @@ class PasswordResetConfirmIn(BaseModel):
     # fica so o minimo de tamanho: validacao no app ajuda o usuario, mas a API
     # precisa recusar por conta propria o que chegar direto por ela.
     new_password: str = Field(min_length=8)
+
+
+class EmailVerificationRequestIn(BaseModel):
+    email: str
+
+
+class EmailVerificationRequestOut(BaseModel):
+    # Mesma resposta para qualquer e-mail, pelo mesmo motivo da recuperacao de
+    # senha: a API nao revela quais e-mails tem conta.
+    message: str = "Se o e-mail estiver cadastrado e não confirmado, enviaremos um código."
+
+
+class EmailVerificationConfirmIn(BaseModel):
+    email: str
+    code: str

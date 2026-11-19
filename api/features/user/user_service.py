@@ -7,12 +7,15 @@ from pwdlib import PasswordHash
 from api.features.user.user import User, UserRole
 from api.features.user.user_repository import UserRepository
 from api.features.user.user_schemas import (
+    EmailVerificationConfirmIn,
     PasswordResetConfirmIn,
     TokenOut,
     UserCreateIn,
     UserLoginIn,
     UserUpdateIn,
 )
+from api.shared import email_verification_codes
+from api.shared.email_codes import EmailThrottle
 from api.shared.exceptions import (
     BadRequestError,
     ErrorCode,
@@ -28,6 +31,7 @@ from api.shared.password_reset_codes import (
     password_reset_throttle,
 )
 from api.shared.security import create_access_token
+from database.config.settings import settings
 
 password_hash = PasswordHash.recommended()
 
@@ -36,12 +40,16 @@ MANAGER_ROLES = frozenset({UserRole.PROFESSOR, UserRole.ADMIN})
 
 
 @dataclass(frozen=True)
-class PasswordResetMessage:
-    """O que precisa ir no e-mail de recuperacao de senha."""
+class EmailCodeMessage:
+    """O que precisa ir num e-mail com codigo: para quem, o nome e o codigo."""
 
     email: str
     name: str
     code: str
+
+
+# Nome usado pela recuperacao de senha, mantido para quem ja importava.
+PasswordResetMessage = EmailCodeMessage
 
 
 class UserService:
@@ -50,10 +58,14 @@ class UserService:
         repository: UserRepository,
         image_storage: ImageStorage,
         reset_throttle: PasswordResetThrottle | None = None,
+        verification_throttle: EmailThrottle | None = None,
     ) -> None:
         self.repository = repository
         self.image_storage = image_storage
         self.reset_throttle = reset_throttle or password_reset_throttle
+        self.verification_throttle = (
+            verification_throttle or email_verification_codes.email_verification_throttle
+        )
 
     async def request_password_reset(self, email: str) -> PasswordResetMessage | None:
         """Decide se um codigo de recuperacao deve ser enviado, e qual.
@@ -102,7 +114,56 @@ class UserService:
                 "Admin users cannot be created",
                 code=ErrorCode.INVALID_CREDENTIALS,
             )
+        _ensure_email_domain_allowed(payload.email, payload.role)
+        # A conta nasce sem verificacao, e so faz login depois de confirmar o
+        # codigo enviado ao e-mail. A excecao e o ambiente local sem Brevo:
+        # sem ter como enviar o codigo, ninguem conseguiria terminar um
+        # cadastro. Em producao isso nao acontece, porque a guarda de producao
+        # exige o Brevo configurado; a checagem de is_production e uma segunda
+        # garantia.
+        user.email_verified = not settings.is_production and not settings.is_email_configured
         return await self.repository.create(user)
+
+    def build_email_verification_message(self, user: User) -> EmailCodeMessage | None:
+        """Codigo para o primeiro envio, logo depois do cadastro."""
+        if user.email_verified:
+            return None
+        return EmailCodeMessage(
+            email=user.email,
+            name=user.name,
+            code=email_verification_codes.issue_code(user.id, user.email),
+        )
+
+    async def request_email_verification(self, email: str) -> EmailCodeMessage | None:
+        """Reenvio do codigo de verificacao.
+
+        Devolve None quando nao ha o que enviar: e-mail sem conta, conta
+        inativa, conta ja verificada, ou um pedido para o mesmo e-mail ha menos
+        de um minuto. Quem chama responde igual nos dois casos.
+        """
+        user = await self.repository.get_by_email(email.strip())
+        if user is None or not user.is_active or user.email_verified:
+            return None
+        if not self.verification_throttle.allow(user.email):
+            return None
+        return self.build_email_verification_message(user)
+
+    async def confirm_email_verification(self, payload: EmailVerificationConfirmIn) -> None:
+        user = await self.repository.get_by_email(payload.email.strip())
+        # A mesma mensagem para e-mail inexistente, conta inativa e codigo
+        # errado ou vencido.
+        if (
+            user is None
+            or not user.is_active
+            or not email_verification_codes.is_valid_code(user.id, user.email, payload.code)
+        ):
+            raise BadRequestError(
+                "Invalid or expired code",
+                code=ErrorCode.INVALID_EMAIL_VERIFICATION_CODE,
+            )
+        if not user.email_verified:
+            user.email_verified = True
+            await self.repository.update(user)
 
     async def login(self, payload: UserLoginIn) -> TokenOut:
         user = await self.repository.get_by_email(payload.email)
@@ -115,6 +176,13 @@ class UserService:
             raise UnauthorizedError(
                 "Inactive user",
                 code=ErrorCode.INVALID_CREDENTIALS,
+            )
+        # Depois da senha, de proposito: so quem ja provou ser dono da conta
+        # fica sabendo que ela existe e falta verificar.
+        if not user.email_verified:
+            raise ForbiddenError(
+                "Email not verified",
+                code=ErrorCode.EMAIL_NOT_VERIFIED,
             )
         return self.create_token(user)
 
@@ -135,6 +203,7 @@ class UserService:
             is_active=True,
             ra=None,
             birth_date=None,
+            email_verified=True,
         )
         return await self.repository.create(user)
 
@@ -229,6 +298,36 @@ class UserService:
         # So depois de excluir o usuario: a foto dele nao e mais usada.
         if profile_picture_public_id:
             await self.image_storage.delete(profile_picture_public_id)
+
+
+def _email_domain(email: str) -> str:
+    _, separator, domain = email.strip().rpartition("@")
+    return domain.lower() if separator else ""
+
+
+def _ensure_email_domain_allowed(email: str, role: UserRole) -> None:
+    # Comparacao pelo dominio exato. "alunos.utfpr.edu.br" termina com
+    # "utfpr.edu.br": comparar pelo final aceitaria qualquer aluno como
+    # servidor. Lista vazia quer dizer sem restricao.
+    domain = _email_domain(email)
+
+    allowed = settings.allowed_email_domains_list
+    if allowed and domain not in allowed:
+        raise BadRequestError(
+            "Email domain not allowed",
+            code=ErrorCode.EMAIL_DOMAIN_NOT_ALLOWED,
+            details={"field": "email"},
+        )
+
+    # So o dominio nao basta, porque qualquer um digita qualquer endereco. E a
+    # verificacao do e-mail que garante que a pessoa recebe mensagens nele.
+    professor_domains = settings.professor_email_domains_list
+    if role == UserRole.PROFESSOR and professor_domains and domain not in professor_domains:
+        raise BadRequestError(
+            "Professors must use a staff email address",
+            code=ErrorCode.EMAIL_DOMAIN_NOT_ALLOWED,
+            details={"field": "email", "role": "professor"},
+        )
 
 
 def _ensure_is_manager(current_user: User) -> None:

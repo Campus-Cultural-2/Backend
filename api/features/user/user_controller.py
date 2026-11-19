@@ -7,6 +7,9 @@ from fastapi.responses import RedirectResponse
 
 from api.features.user.user import User, UserRole
 from api.features.user.user_schemas import (
+    EmailVerificationConfirmIn,
+    EmailVerificationRequestIn,
+    EmailVerificationRequestOut,
     PasswordResetConfirmIn,
     PasswordResetRequestIn,
     PasswordResetRequestOut,
@@ -29,9 +32,46 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.post("/register", response_model=UserCreateOut, status_code=status.HTTP_201_CREATED)
 async def register_user(
     payload: UserCreateIn,
+    background_tasks: BackgroundTasks,
     service: Annotated[UserService, Depends(get_user_service)],
+    email_sender: Annotated[EmailSender, Depends(get_email_sender)],
 ) -> UserCreateOut:
-    return UserCreateOut.model_validate(await service.create(payload))
+    user = await service.create(payload)
+    message = service.build_email_verification_message(user)
+    if message is not None:
+        # O codigo vai depois da resposta, como na recuperacao de senha.
+        background_tasks.add_task(
+            email_sender.send_email_verification_code, message.email, message.name, message.code
+        )
+    return UserCreateOut.model_validate(user)
+
+
+@router.post(
+    "/verify-email/request",
+    response_model=EmailVerificationRequestOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def request_email_verification(
+    payload: EmailVerificationRequestIn,
+    background_tasks: BackgroundTasks,
+    service: Annotated[UserService, Depends(get_user_service)],
+    email_sender: Annotated[EmailSender, Depends(get_email_sender)],
+) -> EmailVerificationRequestOut:
+    message = await service.request_email_verification(payload.email)
+    if message is not None:
+        background_tasks.add_task(
+            email_sender.send_email_verification_code, message.email, message.name, message.code
+        )
+    return EmailVerificationRequestOut()
+
+
+@router.post("/verify-email/confirm", status_code=status.HTTP_204_NO_CONTENT)
+async def confirm_email_verification(
+    payload: EmailVerificationConfirmIn,
+    service: Annotated[UserService, Depends(get_user_service)],
+) -> Response:
+    await service.confirm_email_verification(payload)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/login", response_model=TokenOut)

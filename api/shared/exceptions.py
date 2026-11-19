@@ -34,6 +34,9 @@ class ErrorCode(StrEnum):
     IMAGE_STORAGE_UNAVAILABLE = "image_storage_unavailable"
     PERMISSION_DENIED = "permission_denied"
     INVALID_PASSWORD_RESET_CODE = "invalid_password_reset_code"
+    EMAIL_NOT_VERIFIED = "email_not_verified"
+    INVALID_EMAIL_VERIFICATION_CODE = "invalid_email_verification_code"
+    EMAIL_DOMAIN_NOT_ALLOWED = "email_domain_not_allowed"
 
 
 class AppError(Exception):

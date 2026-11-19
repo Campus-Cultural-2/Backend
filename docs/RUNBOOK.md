@@ -242,6 +242,65 @@ principalmente os institucionais da UTFPR — tendem a desconfiar.
 > 25, 465 e 587. Um envio por SMTP funcionaria na sua máquina e falharia em
 > produção, sem erro visível.
 
+## Usuário não consegue entrar: "e-mail não confirmado"
+
+Toda conta nova nasce **não verificada** e só faz login depois de digitar o
+código enviado ao e-mail do cadastro. Isso prova que a pessoa é dona do
+endereço. O app leva o usuário para a tela de código automaticamente quando o
+login responde `email_not_verified`.
+
+Se o código não chega, siga a seção anterior: o envio é o mesmo da recuperação
+de senha, pelo Brevo, e as mensagens no log começam com
+`Email verification email not sent`.
+
+Em último caso, um admin confirma o e-mail na mão pelo SQL editor do Neon — só
+depois de ter certeza de que a conta é mesmo de quem diz ser:
+
+```sql
+UPDATE users SET email_verified = true WHERE email = 'pessoa@alunos.utfpr.edu.br';
+```
+
+### Por que professor só com `@utfpr.edu.br`
+
+Antes da verificação, qualquer pessoa se cadastrava como professor, e professor
+pode listar, editar, desativar e apagar usuários — inclusive trocar a senha de
+um aluno e tomar a conta dele. Só verificar o e-mail não bastaria: aluno tem uma
+caixa real em `@alunos.utfpr.edu.br`, confirmaria o código e viraria professor
+do mesmo jeito.
+
+O que fecha é a combinação: professor exige e-mail de servidor (`@utfpr.edu.br`,
+comparado pelo domínio exato) **e** confirmação desse e-mail. Um aluno não tem
+como receber mensagens num endereço de servidor que não é dele.
+
+Os domínios aceitos ficam em `ALLOWED_EMAIL_DOMAINS` e
+`PROFESSOR_EMAIL_DOMAINS`. Os padrões já são os da UTFPR; em produção nenhum dos
+dois pode ficar vazio.
+
+### Auditoria obrigatória depois do primeiro deploy
+
+A migration que criou a verificação marcou **todas as contas que já existiam**
+como verificadas — senão ninguém conseguiria mais entrar. Isso inclui qualquer
+conta de professor criada indevidamente antes da correção.
+
+Depois do deploy, rode no SQL editor do Neon:
+
+```sql
+-- Professores com e-mail que nao e de servidor: nao deveriam existir.
+SELECT id, email, name, last_name, is_active
+FROM users
+WHERE role = 'professor' AND email NOT LIKE '%@utfpr.edu.br';
+
+-- Todos os professores, para o time conferir se reconhece cada um.
+SELECT id, email, name, last_name, is_active
+FROM users
+WHERE role = 'professor'
+ORDER BY id;
+```
+
+Conta que ninguém reconhece: desative pelo app (gestão de usuários) ou rebaixe
+para aluno. Não apague antes de olhar se ela criou eventos ou alterou outras
+contas.
+
 ## O monitoramento começou a falhar
 
 O workflow `Monitorar aplicacao` roda `curl --fail` contra `/health` a cada 2

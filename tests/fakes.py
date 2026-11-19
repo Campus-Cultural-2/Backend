@@ -28,6 +28,10 @@ class FakeEmailSender(EmailSender):
 
     def __init__(self) -> None:
         self.password_reset_codes: list[tuple[str, str, str]] = []
+        self.verification_codes: list[tuple[str, str, str]] = []
 
     async def send_password_reset_code(self, to: str, name: str, code: str) -> None:
         self.password_reset_codes.append((to, name, code))
+
+    async def send_email_verification_code(self, to: str, name: str, code: str) -> None:
+        self.verification_codes.append((to, name, code))

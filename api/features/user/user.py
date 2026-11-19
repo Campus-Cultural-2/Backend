@@ -36,6 +36,9 @@ class User(Base):
     last_name: Mapped[str] = mapped_column(String(255), nullable=False)
     birth_date: Mapped[date | None] = mapped_column(nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Se a pessoa ja confirmou, com o codigo enviado por e-mail, que e dona do
+    # endereco informado. Sem isso nao faz login.
+    email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     ra: Mapped[str | None] = mapped_column(String(50), nullable=True, unique=True, index=True)
     # Link da foto no Cloudinary. O arquivo em si nao fica no banco.
     profile_picture_url: Mapped[str | None] = mapped_column(String(500), nullable=True)

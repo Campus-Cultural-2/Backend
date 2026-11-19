@@ -39,6 +39,16 @@ class Settings(BaseSettings):
     email_sender_address: str = ""
     email_sender_name: str = "Campus Cultural UTFPR"
 
+    # Dominios de e-mail aceitos no cadastro, separados por virgula. A
+    # comparacao e pelo dominio exato: "alunos.utfpr.edu.br" termina com
+    # "utfpr.edu.br", entao comparar pelo final aceitaria qualquer aluno como
+    # servidor.
+    allowed_email_domains: str = "utfpr.edu.br,alunos.utfpr.edu.br"
+    # Dominios aceitos para o papel de professor. Aluno tem caixa em
+    # alunos.utfpr.edu.br, nao em utfpr.edu.br; com a verificacao de e-mail,
+    # isso impede que um aluno se cadastre como professor.
+    professor_email_domains: str = "utfpr.edu.br"
+
     @property
     def is_production(self) -> bool:
         return self.environment.lower() == "production"
@@ -52,6 +62,14 @@ class Settings(BaseSettings):
     @property
     def is_email_configured(self) -> bool:
         return all((self.brevo_api_key, self.email_sender_address))
+
+    @property
+    def allowed_email_domains_list(self) -> list[str]:
+        return _split_domains(self.allowed_email_domains)
+
+    @property
+    def professor_email_domains_list(self) -> list[str]:
+        return _split_domains(self.professor_email_domains)
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -96,10 +114,23 @@ class Settings(BaseSettings):
                 "Sem elas a recuperação de senha não envia o código."
             )
 
+        if not self.allowed_email_domains_list:
+            errors.append("ALLOWED_EMAIL_DOMAINS não pode ficar vazio em produção.")
+
+        if not self.professor_email_domains_list:
+            errors.append(
+                "PROFESSOR_EMAIL_DOMAINS não pode ficar vazio em produção. "
+                "Sem ele qualquer pessoa pode se cadastrar como professor."
+            )
+
         if errors:
             raise ValueError("Configuração de produção inválida:\n  - " + "\n  - ".join(errors))
 
         return self
+
+
+def _split_domains(value: str) -> list[str]:
+    return [domain.strip().lower() for domain in value.split(",") if domain.strip()]
 
 
 settings = Settings()

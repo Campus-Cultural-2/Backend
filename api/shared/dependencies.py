@@ -16,7 +16,9 @@ from api.features.subscription.subscription_service import SubscriptionService
 from api.features.user.user import User
 from api.features.user.user_repository import UserRepository
 from api.features.user.user_service import UserService
+from api.shared.email_codes import EmailThrottle
 from api.shared.email_sender import EmailSender
+from api.shared.email_verification_codes import email_verification_throttle
 from api.shared.exceptions import ErrorCode, ResourceNotFoundError, UnauthorizedError
 from api.shared.image_storage import ImageStorage
 from api.shared.password_reset_codes import PasswordResetThrottle, password_reset_throttle
@@ -42,13 +44,18 @@ def get_password_reset_throttle() -> PasswordResetThrottle:
     return password_reset_throttle
 
 
+def get_email_verification_throttle() -> EmailThrottle:
+    return email_verification_throttle
+
+
 def get_user_service(
     session: Annotated[AsyncSession, Depends(get_db_session)],
     image_storage: Annotated[ImageStorage, Depends(get_image_storage)],
     reset_throttle: Annotated[PasswordResetThrottle, Depends(get_password_reset_throttle)],
+    verification_throttle: Annotated[EmailThrottle, Depends(get_email_verification_throttle)],
 ) -> UserService:
     repository = UserRepository(session)
-    return UserService(repository, image_storage, reset_throttle)
+    return UserService(repository, image_storage, reset_throttle, verification_throttle)
 
 
 def get_event_service(

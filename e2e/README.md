@@ -11,10 +11,18 @@ requests.
 ## Pré-requisitos
 
 - Bruno CLI 3.x instalado (`bru --version`).
-- API rodando localmente em `http://localhost:8000`:
+- API rodando localmente em `http://localhost:8000`, **com as regras de domínio
+  de e-mail desligadas**:
   ```
-  uv run task dev
+  ALLOWED_EMAIL_DOMAINS= PROFESSOR_EMAIL_DOMAINS= uv run task dev
   ```
+  A suíte cadastra usuários com e-mails de teste (`@e2e.test`, `@example.com`),
+  que o cadastro recusa por padrão: em produção só são aceitos e-mails da UTFPR,
+  e professor só com `@utfpr.edu.br`. As variáveis vazias tiram essa restrição.
+- **Brevo desligado** (`BREVO_API_KEY` vazia no `.env`). Sem ele, a conta já
+  nasce verificada, como no ambiente local. Com ele, cada usuário cadastrado
+  precisaria confirmar o código por e-mail antes de fazer login, e a suíte
+  falharia no primeiro login.
 - Variáveis `CLOUDINARY_*` preenchidas no `.env` da API. Sem elas o upload
   de profile picture responde 503 e a pasta `Users/Profile Picture` falha.
 
