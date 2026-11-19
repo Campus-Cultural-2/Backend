@@ -22,6 +22,16 @@ async def list_my_subscriptions(
     return [EventReadOut.model_validate(event) for event in events]
 
 
+@router.get("/{event_id}/subscription", response_model=SubscriptionOut)
+async def get_my_subscription(
+    event_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    service: Annotated[SubscriptionService, Depends(get_subscription_service)],
+) -> SubscriptionOut:
+    subscription = await service.get_mine(event_id, current_user)
+    return SubscriptionOut.model_validate(subscription)
+
+
 @router.post(
     "/{event_id}/subscription",
     response_model=SubscriptionOut,

@@ -17,6 +17,7 @@ http:
       {
         "name": "Evento E2E",
         "event_datetime": "2027-10-10T10:00:00",
+        "event_end_datetime": "2027-10-10T12:00:00",
         "event_location": "Laboratório de Informática",
         "description": "Evento criado pela suite Bruno",
         "has_certificate": true,

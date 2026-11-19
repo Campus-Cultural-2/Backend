@@ -8,6 +8,7 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.features.attendance.attendance_service import AttendanceService
 from api.features.event.event_repository import EventRepository
 from api.features.event.event_service import EventService
 from api.features.subscription.subscription_repository import SubscriptionRepository
@@ -53,6 +54,12 @@ def get_subscription_service(
     repository = SubscriptionRepository(session)
     event_repository = EventRepository(session)
     return SubscriptionService(repository, event_repository)
+
+
+def get_attendance_service(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> AttendanceService:
+    return AttendanceService(SubscriptionRepository(session), EventRepository(session))
 
 
 async def get_current_user(

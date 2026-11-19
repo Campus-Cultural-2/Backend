@@ -1,5 +1,6 @@
 import base64
 import binascii
+from datetime import UTC, datetime
 
 from api.features.event.event import Event, HoursGroup
 from api.features.event.event_repository import EventRepository
@@ -24,6 +25,7 @@ class EventService:
         _ensure_valid_certificate_info(
             payload.has_certificate, payload.workload_hours, payload.hours_group
         )
+        _ensure_valid_period(payload.event_datetime, payload.event_end_datetime)
 
         # vínculo com usuário
         event_data["user_id"] = user.id
@@ -66,6 +68,14 @@ class EventService:
             )
 
         update_data = payload.model_dump(exclude_unset=True)
+        # Campos obrigatorios no banco: nulo no payload quer dizer "nao alterar".
+        for required_field in ("event_datetime", "event_end_datetime", "attendance_mode"):
+            if update_data.get(required_field, ...) is None:
+                update_data.pop(required_field)
+        _ensure_valid_period(
+            update_data.get("event_datetime", event.event_datetime),
+            update_data.get("event_end_datetime", event.event_end_datetime),
+        )
         if update_data.get("has_certificate") is False:
             # Ao tirar o certificado, a carga horaria e o grupo deixam de valer.
             update_data.setdefault("workload_hours", None)
@@ -136,6 +146,19 @@ def _ensure_valid_certificate_info(
         raise BadRequestError(
             "Events without certificate cannot have workload_hours or hours_group",
             code=ErrorCode.INVALID_CERTIFICATE_INFO,
+        )
+
+
+def _as_utc(value: datetime) -> datetime:
+    # O banco pode devolver datas sem fuso; elas sao tratadas como UTC.
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
+
+def _ensure_valid_period(start: datetime, end: datetime) -> None:
+    if _as_utc(end) <= _as_utc(start):
+        raise BadRequestError(
+            "event_end_datetime must be after event_datetime",
+            code=ErrorCode.INVALID_EVENT_PERIOD,
         )
 
 

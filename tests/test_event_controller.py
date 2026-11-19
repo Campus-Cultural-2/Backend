@@ -43,6 +43,7 @@ def event_payload() -> dict[str, object]:
         "name": "Evento Legal",
         "description": "Um evento muito legal",
         "event_datetime": "2026-10-10T10:00:00",
+        "event_end_datetime": "2026-10-10T12:00:00",
         "event_location": "Laboratório de Informática",
     }
 
@@ -98,6 +99,7 @@ def test_update_event_returns_updated_event(client: TestClient) -> None:
 
     update_payload = {
         "event_datetime": "2026-12-25T18:00:00",
+        "event_end_datetime": "2026-12-25T20:00:00",
         "name": "novo evento",
         "event_location": "Auditório Principal",
         "description": "Evento atualizado",
