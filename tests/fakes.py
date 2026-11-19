@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from api.shared.email_sender import EmailSender
 from api.shared.image_storage import ImageStorage, StoredImage
 
 
@@ -20,3 +21,13 @@ class FakeImageStorage(ImageStorage):
 
     async def delete(self, public_id: str) -> None:
         self.deleted.append(public_id)
+
+
+class FakeEmailSender(EmailSender):
+    """Substitui o Brevo nos testes: guarda os e-mails em memoria em vez de enviar."""
+
+    def __init__(self) -> None:
+        self.password_reset_codes: list[tuple[str, str, str]] = []
+
+    async def send_password_reset_code(self, to: str, name: str, code: str) -> None:
+        self.password_reset_codes.append((to, name, code))

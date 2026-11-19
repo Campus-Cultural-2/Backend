@@ -75,6 +75,8 @@ Variáveis exigidas em produção:
 | `CLOUDINARY_CLOUD_NAME` | painel do Cloudinary, *Settings > API Keys* |
 | `CLOUDINARY_API_KEY` | idem |
 | `CLOUDINARY_API_SECRET` | idem |
+| `BREVO_API_KEY` | painel do Brevo, *SMTP & API > API Keys* |
+| `EMAIL_SENDER_ADDRESS` | e-mail verificado no Brevo, *Senders & IP > Senders* |
 
 Se o erro **não** for de configuração, procure no log a falha do
 `alembic upgrade head`: as migrations rodam antes da aplicação, e se falharem o
@@ -207,6 +209,38 @@ O `CLOUDINARY_API_SECRET` fica **apenas no backend**. Nunca vai para o app nem
 para o site: só o backend conversa com o Cloudinary.
 
 ---
+
+## O código de recuperação de senha não chega
+
+O usuário pede o código em "Esqueceu a senha?", o app confirma, e o e-mail nunca
+aparece. **A API responde igual com ou sem envio** — de propósito, para não revelar
+quais e-mails têm conta — então o app não tem como saber. A pista fica no log.
+
+No Render, procure nos **Logs** por `Password reset email not sent`:
+
+| Mensagem no log | Causa | O que fazer |
+|-----------------|-------|-------------|
+| `Brevo is not configured` | falta `BREVO_API_KEY` ou `EMAIL_SENDER_ADDRESS` | preencher no painel do Render |
+| `Brevo returned 401` | chave errada ou revogada | gerar outra no Brevo |
+| `Brevo returned 400` | remetente não verificado no Brevo | verificar em *Senders & IP > Senders* |
+| `Brevo returned 429` | estourou o limite diário do plano gratuito | esperar o dia virar |
+| nenhuma mensagem | o pedido não gerou envio | ver abaixo |
+
+Sem mensagem nenhuma no log, o envio nem foi tentado. Isso acontece, por desenho,
+quando:
+
+- o e-mail não está cadastrado, ou foi digitado com maiúsculas diferentes do
+  cadastro — a busca diferencia maiúsculas, como no login;
+- a conta está inativa;
+- já houve um pedido para o mesmo e-mail há menos de um minuto.
+
+Se os logs dizem que enviou e mesmo assim não chegou, **peça para olhar o spam**.
+Sem domínio próprio, o e-mail sai de um remetente pessoal pelo Brevo, e filtros —
+principalmente os institucionais da UTFPR — tendem a desconfiar.
+
+> **Não troque por SMTP.** O plano gratuito do Render bloqueia as portas de saída
+> 25, 465 e 587. Um envio por SMTP funcionaria na sua máquina e falharia em
+> produção, sem erro visível.
 
 ## O monitoramento começou a falhar
 

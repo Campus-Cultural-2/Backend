@@ -31,6 +31,14 @@ class Settings(BaseSettings):
     cloudinary_api_key: str = ""
     cloudinary_api_secret: str = ""
 
+    # Brevo, que envia os e-mails (codigo de recuperacao de senha). E por API
+    # HTTP, e nao SMTP, porque o plano gratuito do Render bloqueia as portas
+    # de saida 25, 465 e 587. A chave fica no painel do Brevo, em
+    # SMTP & API > API Keys. O remetente precisa estar verificado no Brevo.
+    brevo_api_key: str = ""
+    email_sender_address: str = ""
+    email_sender_name: str = "Campus Cultural UTFPR"
+
     @property
     def is_production(self) -> bool:
         return self.environment.lower() == "production"
@@ -40,6 +48,10 @@ class Settings(BaseSettings):
         return all(
             (self.cloudinary_cloud_name, self.cloudinary_api_key, self.cloudinary_api_secret)
         )
+
+    @property
+    def is_email_configured(self) -> bool:
+        return all((self.brevo_api_key, self.email_sender_address))
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -76,6 +88,12 @@ class Settings(BaseSettings):
             errors.append(
                 "CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY e CLOUDINARY_API_SECRET precisam "
                 "estar preenchidas. Sem elas o upload de imagens não funciona."
+            )
+
+        if not self.is_email_configured:
+            errors.append(
+                "BREVO_API_KEY e EMAIL_SENDER_ADDRESS precisam estar preenchidas. "
+                "Sem elas a recuperação de senha não envia o código."
             )
 
         if errors:

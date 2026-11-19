@@ -33,6 +33,7 @@ class ErrorCode(StrEnum):
     INVALID_IMAGE = "invalid_image"
     IMAGE_STORAGE_UNAVAILABLE = "image_storage_unavailable"
     PERMISSION_DENIED = "permission_denied"
+    INVALID_PASSWORD_RESET_CODE = "invalid_password_reset_code"
 
 
 class AppError(Exception):

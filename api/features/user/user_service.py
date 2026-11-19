@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from pwdlib import PasswordHash
 
 from api.features.user.user import User, UserRole
 from api.features.user.user_repository import UserRepository
-from api.features.user.user_schemas import TokenOut, UserCreateIn, UserLoginIn, UserUpdateIn
+from api.features.user.user_schemas import (
+    PasswordResetConfirmIn,
+    TokenOut,
+    UserCreateIn,
+    UserLoginIn,
+    UserUpdateIn,
+)
 from api.shared.exceptions import (
     BadRequestError,
     ErrorCode,
@@ -13,6 +21,12 @@ from api.shared.exceptions import (
     UnauthorizedError,
 )
 from api.shared.image_storage import PROFILE_PICTURES_FOLDER, ImageStorage, StoredImage
+from api.shared.password_reset_codes import (
+    PasswordResetThrottle,
+    is_valid_code,
+    issue_code,
+    password_reset_throttle,
+)
 from api.shared.security import create_access_token
 
 password_hash = PasswordHash.recommended()
@@ -21,10 +35,61 @@ password_hash = PasswordHash.recommended()
 MANAGER_ROLES = frozenset({UserRole.PROFESSOR, UserRole.ADMIN})
 
 
+@dataclass(frozen=True)
+class PasswordResetMessage:
+    """O que precisa ir no e-mail de recuperacao de senha."""
+
+    email: str
+    name: str
+    code: str
+
+
 class UserService:
-    def __init__(self, repository: UserRepository, image_storage: ImageStorage) -> None:
+    def __init__(
+        self,
+        repository: UserRepository,
+        image_storage: ImageStorage,
+        reset_throttle: PasswordResetThrottle | None = None,
+    ) -> None:
         self.repository = repository
         self.image_storage = image_storage
+        self.reset_throttle = reset_throttle or password_reset_throttle
+
+    async def request_password_reset(self, email: str) -> PasswordResetMessage | None:
+        """Decide se um codigo de recuperacao deve ser enviado, e qual.
+
+        Devolve None quando nao ha o que enviar: e-mail sem conta, conta
+        inativa, ou um pedido para o mesmo e-mail ha menos de um minuto. Quem
+        chama devolve a mesma resposta nos dois casos, para nao revelar quais
+        e-mails tem conta.
+        """
+        user = await self.repository.get_by_email(email.strip())
+        if user is None or not user.is_active:
+            return None
+        if not self.reset_throttle.allow(user.email):
+            return None
+        return PasswordResetMessage(
+            email=user.email,
+            name=user.name,
+            code=issue_code(user.id, user.password_hash),
+        )
+
+    async def confirm_password_reset(self, payload: PasswordResetConfirmIn) -> None:
+        user = await self.repository.get_by_email(payload.email.strip())
+        # A mesma mensagem para e-mail inexistente, conta inativa e codigo
+        # errado ou vencido, pelo mesmo motivo do pedido.
+        if (
+            user is None
+            or not user.is_active
+            or not is_valid_code(user.id, user.password_hash, payload.code)
+        ):
+            raise BadRequestError(
+                "Invalid or expired code",
+                code=ErrorCode.INVALID_PASSWORD_RESET_CODE,
+            )
+        # Trocar o hash invalida o codigo usado, que dependia do hash antigo.
+        user.password_hash = password_hash.hash(payload.new_password)
+        await self.repository.update(user)
 
     async def create(self, payload: UserCreateIn) -> User:
         user_data = payload.model_dump(exclude={"password"})

@@ -88,3 +88,12 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+
+      # Brevo, que envia o codigo de recuperacao de senha por e-mail. E por API
+      # HTTP porque o plano gratuito do Render bloqueia as portas do SMTP.
+      # O endereco do remetente tambem fica fora do repositorio: costuma ser um
+      # e-mail pessoal, verificado no Brevo.
+      - key: BREVO_API_KEY
+        sync: false
+      - key: EMAIL_SENDER_ADDRESS
+        sync: false
