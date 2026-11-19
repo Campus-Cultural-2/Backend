@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Response, status
 
 from api.features.event.event_schemas import EventReadOut
-from api.features.subscription.subscription_schemas import SubscriptionOut
+from api.features.subscription.subscription_schemas import EventSubscriberOut, SubscriptionOut
 from api.features.subscription.subscription_service import SubscriptionService
 from api.features.user.user import User
 from api.shared.dependencies import get_current_user, get_subscription_service
@@ -30,6 +30,19 @@ async def get_my_subscription(
 ) -> SubscriptionOut:
     subscription = await service.get_mine(event_id, current_user)
     return SubscriptionOut.model_validate(subscription)
+
+
+@router.get("/{event_id}/subscribers", response_model=list[EventSubscriberOut])
+async def list_event_subscribers(
+    event_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    service: Annotated[SubscriptionService, Depends(get_subscription_service)],
+) -> list[EventSubscriberOut]:
+    subscribers = await service.list_event_subscribers(event_id, current_user)
+    return [
+        EventSubscriberOut.from_subscription(user, subscribed_at)
+        for user, subscribed_at in subscribers
+    ]
 
 
 @router.post(

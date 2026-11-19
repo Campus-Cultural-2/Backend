@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,3 +62,15 @@ class SubscriptionRepository:
         )
         result = await self.session.scalars(statement)
         return list(result)
+
+    async def list_subscribers_by_event(self, event_id: int) -> list[tuple[User, datetime]]:
+        # Uma unica consulta traz cada inscrito junto com a data da inscricao,
+        # na ordem em que as inscricoes foram feitas.
+        statement = (
+            select(User, EventSubscription.created_at)
+            .join(EventSubscription, EventSubscription.user_id == User.id)
+            .where(EventSubscription.event_id == event_id)
+            .order_by(EventSubscription.created_at, EventSubscription.id)
+        )
+        result = await self.session.execute(statement)
+        return [(user, subscribed_at) for user, subscribed_at in result.all()]

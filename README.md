@@ -113,6 +113,12 @@ passos entre o build e a publicacao (imagem Docker, registry, testes de fumaca),
 quando ha mais de um ambiente com aprovacao manual entre eles, ou quando o deploy
 precisa coordenar mais de um repositorio.
 
+### Quando algo da errado
+
+O [`docs/RUNBOOK.md`](docs/RUNBOOK.md) reune os procedimentos de operacao: API
+fora do ar, deploy que nao sobe, rollback, perda de dados no banco, troca do
+segredo dos tokens, criacao do primeiro admin e os limites dos planos gratuitos.
+
 ### Monitoramento
 
 O [`.github/workflows/monitoring.yml`](.github/workflows/monitoring.yml) verifica a
