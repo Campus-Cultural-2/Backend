@@ -37,6 +37,22 @@ class SubscriptionRepository:
         await self.session.delete(subscription)
         await self.session.commit()
 
+    async def update(self, subscription: EventSubscription) -> EventSubscription:
+        self.session.add(subscription)
+        await self.session.commit()
+        await self.session.refresh(subscription)
+        return subscription
+
+    async def list_with_users(self, event_id: int) -> list[tuple[EventSubscription, User]]:
+        statement = (
+            select(EventSubscription, User)
+            .join(User, User.id == EventSubscription.user_id)
+            .where(EventSubscription.event_id == event_id)
+            .order_by(User.name, User.last_name, User.id)
+        )
+        result = await self.session.execute(statement)
+        return [(row[0], row[1]) for row in result.all()]
+
     async def list_events_by_user(self, user_id: int) -> list[Event]:
         statement = (
             select(Event)

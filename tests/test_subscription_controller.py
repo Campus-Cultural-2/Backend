@@ -41,6 +41,7 @@ def event_payload(name: str = "Evento Legal") -> dict[str, object]:
         "name": name,
         "description": "Um evento muito legal",
         "event_datetime": "2026-10-10T10:00:00",
+        "event_end_datetime": "2026-10-10T12:00:00",
         "event_location": "Laboratório de Informática",
     }
 

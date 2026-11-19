@@ -4,12 +4,14 @@ from datetime import datetime
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
-from api.features.event.event import HoursGroup
+from api.features.event.event import AttendanceMode, HoursGroup
 
 
 class EventBaseSchema(BaseModel):
     name: str
     event_datetime: datetime
+    # Horario de encerramento; precisa ser depois do inicio.
+    event_end_datetime: datetime
     event_location: str
     description: str
     has_certificate: bool = False
@@ -18,6 +20,8 @@ class EventBaseSchema(BaseModel):
     hours_group: HoursGroup | None = None
     # Sem limite quando nulo.
     max_participants: int | None = Field(default=None, ge=1)
+    # Como a presenca e confirmada. Padrao: sem confirmacao.
+    attendance_mode: AttendanceMode = AttendanceMode.NONE
 
 
 class EventCreateIn(EventBaseSchema):
@@ -51,6 +55,9 @@ class EventReadOut(EventOutSchema):
 class EventUpdateIn(BaseModel):
     image: str | None = None
     event_datetime: datetime | None = None
+    # Nulo nos dois campos abaixo significa "nao alterar".
+    event_end_datetime: datetime | None = None
+    attendance_mode: AttendanceMode | None = None
     name: str | None = None
     description: str | None = None
     event_location: str | None = None
