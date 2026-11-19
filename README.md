@@ -77,6 +77,34 @@ Depois disso, a API ficará disponível em:
 - `http://127.0.0.1:8000`
 - Documentação automática: `http://127.0.0.1:8000/docs`
 
+## Eventos: horário final e presença
+
+Todo evento tem `event_datetime` (início) e `event_end_datetime` (encerramento,
+obrigatório e sempre depois do início). O campo `attendance_mode` define como a
+presença dos inscritos é confirmada:
+
+| `attendance_mode` | Como funciona |
+|-------------------|---------------|
+| `none` (padrão) | Sem confirmação: todos os inscritos contam como presentes (`attended: true`). |
+| `professor` | O professor responsável ou um admin confirma na lista (checkbox) ou lendo o QR code do aluno. O aluno vê o código em `attendance_code`. |
+| `student` | O aluno lê (ou digita) o código do evento, só entre o início e o fim do evento. |
+
+Endpoints (todos exigem login; gerenciar presença é do professor dono do evento ou admin):
+
+| Método e rota | Quem | O que faz |
+|---------------|------|-----------|
+| `GET /events/{id}/subscription` | aluno inscrito | Mostra a própria inscrição, com `checked_in_at` e `attendance_code` (modo `professor`). |
+| `GET /events/{id}/participants` | dono ou admin | Lista os inscritos com `attended` e `checked_in_at`. |
+| `PUT /events/{id}/participants/{user_id}/attendance` | dono ou admin | Marca ou desmarca a presença (`{"present": true}`). Só no modo `professor`, depois do início. |
+| `POST /events/{id}/attendance/scan` | dono ou admin | Confirma a presença lendo o código do aluno (`{"code": "..."}`). Só no modo `professor`, depois do início. |
+| `GET /events/{id}/attendance/code` | dono ou admin | Devolve o código do evento. Só no modo `student`. |
+| `POST /events/{id}/attendance/check-in` | aluno inscrito | Confirma a própria presença com o código do evento. Só no modo `student`, durante o evento. |
+
+Os códigos não ficam no banco: são calculados a partir do `JWT_SECRET_KEY`. Trocar
+esse segredo invalida os códigos já distribuídos. Erros específicos:
+`invalid_event_period`, `attendance_mode_mismatch`, `invalid_attendance_code` e
+`attendance_window_closed` (com `details.reason` = `not_started` ou `ended`).
+
 ## Deploy
 
 O deploy roda no Render e a configuracao esta versionada em
@@ -231,13 +259,14 @@ Na próxima execução da aplicação, o arquivo será criado novamente.
 
 ## Testes
 
-Os testes atuais cobrem o CRUD básico de `Usuario`:
+Rode a suíte inteira com:
 
-- criar
-- listar
-- buscar por id
-- atualizar
-- remover
+```bash
+uv run task test
+```
+
+Ela cobre usuários, eventos (limite de participantes, certificado, horário final),
+inscrições, lista de inscritos e confirmação de presença.
 
 ## Observação
 
