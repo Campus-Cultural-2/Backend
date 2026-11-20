@@ -2,11 +2,17 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, Query, Response, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Query, Response, status
 from fastapi.responses import RedirectResponse
 
 from api.features.user.user import User, UserRole
 from api.features.user.user_schemas import (
+    EmailVerificationConfirmIn,
+    EmailVerificationRequestIn,
+    EmailVerificationRequestOut,
+    PasswordResetConfirmIn,
+    PasswordResetRequestIn,
+    PasswordResetRequestOut,
     TokenOut,
     UserCreateIn,
     UserCreateOut,
@@ -17,7 +23,8 @@ from api.features.user.user_schemas import (
     UserUpdateOut,
 )
 from api.features.user.user_service import UserService
-from api.shared.dependencies import get_current_user, get_user_service
+from api.shared.dependencies import get_current_user, get_email_sender, get_user_service
+from api.shared.email_sender import EmailSender
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -25,9 +32,46 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.post("/register", response_model=UserCreateOut, status_code=status.HTTP_201_CREATED)
 async def register_user(
     payload: UserCreateIn,
+    background_tasks: BackgroundTasks,
     service: Annotated[UserService, Depends(get_user_service)],
+    email_sender: Annotated[EmailSender, Depends(get_email_sender)],
 ) -> UserCreateOut:
-    return UserCreateOut.model_validate(await service.create(payload))
+    user = await service.create(payload)
+    message = service.build_email_verification_message(user)
+    if message is not None:
+        # O codigo vai depois da resposta, como na recuperacao de senha.
+        background_tasks.add_task(
+            email_sender.send_email_verification_code, message.email, message.name, message.code
+        )
+    return UserCreateOut.model_validate(user)
+
+
+@router.post(
+    "/verify-email/request",
+    response_model=EmailVerificationRequestOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def request_email_verification(
+    payload: EmailVerificationRequestIn,
+    background_tasks: BackgroundTasks,
+    service: Annotated[UserService, Depends(get_user_service)],
+    email_sender: Annotated[EmailSender, Depends(get_email_sender)],
+) -> EmailVerificationRequestOut:
+    message = await service.request_email_verification(payload.email)
+    if message is not None:
+        background_tasks.add_task(
+            email_sender.send_email_verification_code, message.email, message.name, message.code
+        )
+    return EmailVerificationRequestOut()
+
+
+@router.post("/verify-email/confirm", status_code=status.HTTP_204_NO_CONTENT)
+async def confirm_email_verification(
+    payload: EmailVerificationConfirmIn,
+    service: Annotated[UserService, Depends(get_user_service)],
+) -> Response:
+    await service.confirm_email_verification(payload)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/login", response_model=TokenOut)
@@ -36,6 +80,38 @@ async def login_user(
     service: Annotated[UserService, Depends(get_user_service)],
 ) -> TokenOut:
     return await service.login(payload)
+
+
+@router.post(
+    "/password-reset/request",
+    response_model=PasswordResetRequestOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def request_password_reset(
+    payload: PasswordResetRequestIn,
+    background_tasks: BackgroundTasks,
+    service: Annotated[UserService, Depends(get_user_service)],
+    email_sender: Annotated[EmailSender, Depends(get_email_sender)],
+) -> PasswordResetRequestOut:
+    message = await service.request_password_reset(payload.email)
+    if message is not None:
+        # O envio fica para depois da resposta. Assim a resposta demora o
+        # mesmo para e-mail cadastrado ou nao, e o tempo dela nao revela quem
+        # tem conta. A consulta ao banco ja foi feita acima, antes da sessao
+        # fechar.
+        background_tasks.add_task(
+            email_sender.send_password_reset_code, message.email, message.name, message.code
+        )
+    return PasswordResetRequestOut()
+
+
+@router.post("/password-reset/confirm", status_code=status.HTTP_204_NO_CONTENT)
+async def confirm_password_reset(
+    payload: PasswordResetConfirmIn,
+    service: Annotated[UserService, Depends(get_user_service)],
+) -> Response:
+    await service.confirm_password_reset(payload)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/refresh-token", response_model=TokenOut)

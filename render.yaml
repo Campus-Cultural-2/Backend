@@ -88,3 +88,12 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+
+      # Envio de e-mail pelo Google Apps Script (docs/envio-de-email/). E por
+      # HTTPS porque o plano gratuito do Render bloqueia as portas do SMTP.
+      # A URL tambem fica fora do repositorio: com ela e o segredo, da para
+      # enviar e-mail pela conta do projeto.
+      - key: EMAIL_RELAY_URL
+        sync: false
+      - key: EMAIL_RELAY_SECRET
+        sync: false

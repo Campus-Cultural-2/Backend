@@ -75,6 +75,8 @@ Variáveis exigidas em produção:
 | `CLOUDINARY_CLOUD_NAME` | painel do Cloudinary, *Settings > API Keys* |
 | `CLOUDINARY_API_KEY` | idem |
 | `CLOUDINARY_API_SECRET` | idem |
+| `EMAIL_RELAY_URL` | URL do script de envio, terminando em `/exec` — ver [docs/envio-de-email](envio-de-email/README.md) |
+| `EMAIL_RELAY_SECRET` | o segredo guardado em *Propriedades do script*, com 32 caracteres ou mais |
 
 Se o erro **não** for de configuração, procure no log a falha do
 `alembic upgrade head`: as migrations rodam antes da aplicação, e se falharem o
@@ -207,6 +209,100 @@ O `CLOUDINARY_API_SECRET` fica **apenas no backend**. Nunca vai para o app nem
 para o site: só o backend conversa com o Cloudinary.
 
 ---
+
+## O código de recuperação de senha não chega
+
+O usuário pede o código em "Esqueceu a senha?", o app confirma, e o e-mail nunca
+aparece. **A API responde igual com ou sem envio** — de propósito, para não revelar
+quais e-mails têm conta — então o app não tem como saber. A pista fica no log.
+
+No Render, procure nos **Logs** por `Password reset email not sent`:
+
+| Mensagem no log | Causa | O que fazer |
+|-----------------|-------|-------------|
+| `email relay is not configured` | falta `EMAIL_RELAY_URL` ou `EMAIL_RELAY_SECRET` | preencher no painel do Render |
+| `relay error unauthorized` | segredo do Render diferente do `SEGREDO` do script | igualar os dois |
+| `relay error quota` | a conta Gmail já enviou os 100 e-mails do dia | esperar o dia virar |
+| `relay error recipient_not_allowed` | destinatário fora dos domínios da UTFPR | esperado; o script só envia para a UTFPR |
+| `relay error error` | o Gmail recusou o envio | ver *Execuções* no editor do Apps Script |
+| `relay returned an unexpected page` | URL errada, ou implantação sem "Qualquer pessoa" | refazer o passo 5 de [docs/envio-de-email](envio-de-email/README.md) |
+| `ConnectTimeout` / `ReadTimeout` | o Google demorou mais de 20 s | costuma ser passageiro; pedir outro código |
+| nenhuma mensagem | o pedido não gerou envio | ver abaixo |
+
+Sem mensagem nenhuma no log, o envio nem foi tentado. Isso acontece, por desenho,
+quando:
+
+- o e-mail não está cadastrado, ou foi digitado com maiúsculas diferentes do
+  cadastro — a busca diferencia maiúsculas, como no login;
+- a conta está inativa;
+- já houve um pedido para o mesmo e-mail há menos de um minuto.
+
+Se os logs dizem que enviou e mesmo assim não chegou, **peça para olhar o spam**.
+Sem domínio próprio, o e-mail sai de uma conta Gmail comum, e filtros —
+principalmente os institucionais da UTFPR — tendem a desconfiar.
+
+> **Não troque por SMTP.** O plano gratuito do Render bloqueia as portas de saída
+> 25, 465 e 587. Um envio por SMTP funcionaria na sua máquina e falharia em
+> produção, sem erro visível.
+
+## Usuário não consegue entrar: "e-mail não confirmado"
+
+Toda conta nova nasce **não verificada** e só faz login depois de digitar o
+código enviado ao e-mail do cadastro. Isso prova que a pessoa é dona do
+endereço. O app leva o usuário para a tela de código automaticamente quando o
+login responde `email_not_verified`.
+
+Se o código não chega, siga a seção anterior: o envio é o mesmo da recuperação
+de senha, pelo script do Google, e as mensagens no log começam com
+`Email verification email not sent`.
+
+Em último caso, um admin confirma o e-mail na mão pelo SQL editor do Neon — só
+depois de ter certeza de que a conta é mesmo de quem diz ser:
+
+```sql
+UPDATE users SET email_verified = true WHERE email = 'pessoa@alunos.utfpr.edu.br';
+```
+
+### Por que professor só com `@utfpr.edu.br`
+
+Antes da verificação, qualquer pessoa se cadastrava como professor, e professor
+pode listar, editar, desativar e apagar usuários — inclusive trocar a senha de
+um aluno e tomar a conta dele. Só verificar o e-mail não bastaria: aluno tem uma
+caixa real em `@alunos.utfpr.edu.br`, confirmaria o código e viraria professor
+do mesmo jeito.
+
+O que fecha é a combinação: professor exige e-mail de servidor (`@utfpr.edu.br`,
+comparado pelo domínio exato) **e** confirmação desse e-mail. Um aluno não tem
+como receber mensagens num endereço de servidor que não é dele.
+
+Os domínios aceitos ficam em `ALLOWED_EMAIL_DOMAINS` e
+`PROFESSOR_EMAIL_DOMAINS`. Os padrões já são os da UTFPR; em produção nenhum dos
+dois pode ficar vazio.
+
+### Auditoria obrigatória depois do primeiro deploy
+
+A migration que criou a verificação marcou **todas as contas que já existiam**
+como verificadas — senão ninguém conseguiria mais entrar. Isso inclui qualquer
+conta de professor criada indevidamente antes da correção.
+
+Depois do deploy, rode no SQL editor do Neon:
+
+```sql
+-- Professores com e-mail que nao e de servidor: nao deveriam existir.
+SELECT id, email, name, last_name, is_active
+FROM users
+WHERE role = 'professor' AND email NOT LIKE '%@utfpr.edu.br';
+
+-- Todos os professores, para o time conferir se reconhece cada um.
+SELECT id, email, name, last_name, is_active
+FROM users
+WHERE role = 'professor'
+ORDER BY id;
+```
+
+Conta que ninguém reconhece: desative pelo app (gestão de usuários) ou rebaixe
+para aluno. Não apague antes de olhar se ela criou eventos ou alterou outras
+contas.
 
 ## O monitoramento começou a falhar
 

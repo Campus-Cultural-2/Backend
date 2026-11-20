@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from api.features.user.user import UserRole
 
@@ -65,3 +65,38 @@ class UserUpdateOut(UserBaseSchema):
 
     id: int
     profile_picture_url: str | None = None
+
+
+class PasswordResetRequestIn(BaseModel):
+    email: str
+
+
+class PasswordResetRequestOut(BaseModel):
+    # A mesma resposta para qualquer e-mail, cadastrado ou nao, para a API nao
+    # revelar quem tem conta. E o mesmo motivo do login devolver "e-mail ou
+    # senha invalidos" sem dizer qual dos dois.
+    message: str = "Se o e-mail estiver cadastrado, enviaremos um código para ele."
+
+
+class PasswordResetConfirmIn(BaseModel):
+    email: str
+    code: str
+    # O app exige ao menos 8 caracteres, um numero e um caractere especial. Aqui
+    # fica so o minimo de tamanho: validacao no app ajuda o usuario, mas a API
+    # precisa recusar por conta propria o que chegar direto por ela.
+    new_password: str = Field(min_length=8)
+
+
+class EmailVerificationRequestIn(BaseModel):
+    email: str
+
+
+class EmailVerificationRequestOut(BaseModel):
+    # Mesma resposta para qualquer e-mail, pelo mesmo motivo da recuperacao de
+    # senha: a API nao revela quais e-mails tem conta.
+    message: str = "Se o e-mail estiver cadastrado e não confirmado, enviaremos um código."
+
+
+class EmailVerificationConfirmIn(BaseModel):
+    email: str
+    code: str
