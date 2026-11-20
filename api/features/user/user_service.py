@@ -116,10 +116,10 @@ class UserService:
             )
         _ensure_email_domain_allowed(payload.email, payload.role)
         # A conta nasce sem verificacao, e so faz login depois de confirmar o
-        # codigo enviado ao e-mail. A excecao e o ambiente local sem Brevo:
+        # codigo enviado ao e-mail. A excecao e o ambiente local sem envio de e-mail:
         # sem ter como enviar o codigo, ninguem conseguiria terminar um
         # cadastro. Em producao isso nao acontece, porque a guarda de producao
-        # exige o Brevo configurado; a checagem de is_production e uma segunda
+        # exige o envio configurado; a checagem de is_production e uma segunda
         # garantia.
         user.email_verified = not settings.is_production and not settings.is_email_configured
         return await self.repository.create(user)

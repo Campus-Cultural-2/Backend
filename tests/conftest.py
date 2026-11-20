@@ -26,16 +26,16 @@ def legacy_signup_rules(monkeypatch: pytest.MonkeyPatch) -> None:
 
     A maior parte dos testes foi escrita antes dela: cadastra com e-mails de
     exemplo, como maria@example.com, e faz login logo em seguida. Aqui o
-    cadastro aceita qualquer dominio e o Brevo fica desligado, o que faz a
-    conta ja nascer verificada, como no ambiente local.
+    cadastro aceita qualquer dominio e o envio de e-mail fica desligado, o que
+    faz a conta ja nascer verificada, como no ambiente local.
 
     Os testes de tests/test_email_verification.py religam as regras de
-    verdade. O Brevo e forcado para vazio para o resultado nao depender de um
-    .env na maquina de quem roda os testes.
+    verdade. O envio e forcado para desligado para o resultado nao depender
+    de um .env na maquina de quem roda os testes.
     """
     monkeypatch.setattr(settings, "allowed_email_domains", "")
     monkeypatch.setattr(settings, "professor_email_domains", "")
-    monkeypatch.setattr(settings, "brevo_api_key", "")
+    monkeypatch.setattr(settings, "email_relay_url", "")
 
 
 async def _create_schema(database_url: str) -> None:

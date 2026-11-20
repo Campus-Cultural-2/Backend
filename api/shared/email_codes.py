@@ -56,7 +56,7 @@ class EmailThrottle:
     """Permite um envio de codigo por e-mail a cada `cooldown_seconds`.
 
     Protege a caixa de entrada de quem e alvo de pedidos repetidos e a cota
-    diaria do plano gratuito do Brevo, que e de 300 e-mails.
+    diaria de envio da conta Gmail do projeto, que e de 100 e-mails.
 
     Fica em memoria: zera quando o servico reinicia ou dorme, e nao e
     dividido entre instancias. Com uma instancia so, como no plano gratuito

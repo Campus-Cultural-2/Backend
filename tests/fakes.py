@@ -24,7 +24,7 @@ class FakeImageStorage(ImageStorage):
 
 
 class FakeEmailSender(EmailSender):
-    """Substitui o Brevo nos testes: guarda os e-mails em memoria em vez de enviar."""
+    """Substitui o envio de e-mail nos testes: guarda os e-mails em memoria em vez de enviar."""
 
     def __init__(self) -> None:
         self.password_reset_codes: list[tuple[str, str, str]] = []

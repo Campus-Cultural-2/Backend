@@ -19,7 +19,7 @@ requests.
   A suíte cadastra usuários com e-mails de teste (`@e2e.test`, `@example.com`),
   que o cadastro recusa por padrão: em produção só são aceitos e-mails da UTFPR,
   e professor só com `@utfpr.edu.br`. As variáveis vazias tiram essa restrição.
-- **Brevo desligado** (`BREVO_API_KEY` vazia no `.env`). Sem ele, a conta já
+- **Envio de e-mail desligado** (`EMAIL_RELAY_URL` vazia no `.env`). Sem ele, a conta já
   nasce verificada, como no ambiente local. Com ele, cada usuário cadastrado
   precisaria confirmar o código por e-mail antes de fazer login, e a suíte
   falharia no primeiro login.

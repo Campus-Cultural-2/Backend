@@ -8,18 +8,23 @@ import httpx
 from api.shared.email_codes import WINDOW_SECONDS
 from database.config.settings import settings
 
-BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email"
-
 logger = logging.getLogger(__name__)
+
+# Erros que o script devolve (docs/envio-de-email/Code.gs). So estes vao para
+# o log; qualquer outra coisa vira "unknown", para o log nao repetir texto
+# arbitrario de uma URL configurada errada.
+RELAY_ERRORS = frozenset(
+    {"unauthorized", "recipient_not_allowed", "invalid_message", "quota", "error"}
+)
 
 
 class EmailSender:
-    """Envia e-mails pela API HTTP do Brevo.
+    """Envia e-mails pelo script do Google Apps Script (docs/envio-de-email/).
 
-    E por API HTTP, e nao por SMTP, de proposito: o plano gratuito do Render
-    bloqueia as portas de saida 25, 465 e 587, que sao as do SMTP. Um envio
-    por SMTP funcionaria na maquina de quem desenvolve e falharia em silencio
-    em producao.
+    A API chama o script por HTTPS e ele envia pelo Gmail da conta do
+    projeto. Nao e por SMTP de proposito: o plano gratuito do Render bloqueia
+    as portas de saida 25, 465 e 587, entao SMTP funcionaria na maquina de
+    quem desenvolve e falharia em silencio em producao.
 
     Os envios rodam em segundo plano, depois que a resposta ja foi devolvida
     ao app, entao uma falha aqui nao chega ao usuario: vai para o log. O
@@ -60,7 +65,7 @@ class EmailSender:
         outro: str,
     ) -> None:
         if not settings.is_email_configured:
-            logger.warning("%s email not sent: Brevo is not configured", kind)
+            logger.warning("%s email not sent: email relay is not configured", kind)
             return
 
         minutes = WINDOW_SECONDS // 60
@@ -76,22 +81,38 @@ class EmailSender:
 <p>{outro}</p>
 """
         payload = {
-            "sender": {"name": settings.email_sender_name, "email": settings.email_sender_address},
-            "to": [{"email": to, "name": name}],
+            "secret": settings.email_relay_secret,
+            "to": to,
             "subject": subject,
-            "htmlContent": body,
+            "html": body,
+            "senderName": settings.email_sender_name,
         }
 
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                response = await client.post(
-                    BREVO_SEND_URL,
-                    json=payload,
-                    headers={"api-key": settings.brevo_api_key, "accept": "application/json"},
-                )
+            # O Apps Script responde o POST com um redirecionamento para a
+            # pagina com o resultado; sem seguir, a resposta nao diz se enviou.
+            async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
+                response = await client.post(settings.email_relay_url, json=payload)
         except httpx.HTTPError as exc:
             logger.warning("%s email not sent: %s", kind, type(exc).__name__)
             return
 
         if response.status_code >= 400:
-            logger.warning("%s email not sent: Brevo returned %s", kind, response.status_code)
+            logger.warning("%s email not sent: relay returned %s", kind, response.status_code)
+            return
+
+        try:
+            result = response.json()
+        except ValueError:
+            # Pagina de erro do Google em vez do JSON do script: URL errada ou
+            # implantacao que nao esta como "Qualquer pessoa".
+            logger.warning("%s email not sent: relay returned an unexpected page", kind)
+            return
+
+        if not isinstance(result, dict) or result.get("ok") is not True:
+            error = result.get("error") if isinstance(result, dict) else None
+            logger.warning(
+                "%s email not sent: relay error %s",
+                kind,
+                error if error in RELAY_ERRORS else "unknown",
+            )

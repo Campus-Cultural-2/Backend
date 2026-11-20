@@ -89,11 +89,11 @@ services:
       - key: CLOUDINARY_API_SECRET
         sync: false
 
-      # Brevo, que envia o codigo de recuperacao de senha por e-mail. E por API
-      # HTTP porque o plano gratuito do Render bloqueia as portas do SMTP.
-      # O endereco do remetente tambem fica fora do repositorio: costuma ser um
-      # e-mail pessoal, verificado no Brevo.
-      - key: BREVO_API_KEY
+      # Envio de e-mail pelo Google Apps Script (docs/envio-de-email/). E por
+      # HTTPS porque o plano gratuito do Render bloqueia as portas do SMTP.
+      # A URL tambem fica fora do repositorio: com ela e o segredo, da para
+      # enviar e-mail pela conta do projeto.
+      - key: EMAIL_RELAY_URL
         sync: false
-      - key: EMAIL_SENDER_ADDRESS
+      - key: EMAIL_RELAY_SECRET
         sync: false

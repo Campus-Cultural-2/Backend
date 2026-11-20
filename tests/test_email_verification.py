@@ -20,13 +20,13 @@ PASSWORD = "senha-forte-1!"
 def real_signup_rules(monkeypatch: pytest.MonkeyPatch) -> None:
     """Religa as regras de verdade, que o conftest desliga para os testes antigos.
 
-    Com o Brevo "configurado", a conta nao nasce verificada. O envio em si
-    continua indo para o FakeEmailSender, sem rede.
+    Com o envio de e-mail "configurado", a conta nao nasce verificada. O envio
+    em si continua indo para o FakeEmailSender, sem rede.
     """
     monkeypatch.setattr(settings, "allowed_email_domains", "utfpr.edu.br,alunos.utfpr.edu.br")
     monkeypatch.setattr(settings, "professor_email_domains", "utfpr.edu.br")
-    monkeypatch.setattr(settings, "brevo_api_key", "test-key")
-    monkeypatch.setattr(settings, "email_sender_address", "remetente@example.com")
+    monkeypatch.setattr(settings, "email_relay_url", "https://script.google.com/macros/s/x/exec")
+    monkeypatch.setattr(settings, "email_relay_secret", "s" * 48)
 
 
 def payload(email: str, role: str = "student", ra: str | None = "2024100") -> dict:
@@ -225,11 +225,11 @@ def test_code_is_bound_to_the_email_address() -> None:
     assert not is_valid_code(1, "b@utfpr.edu.br", code, now=0)
 
 
-def test_local_environment_without_brevo_skips_verification(
+def test_local_environment_without_email_skips_verification(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Sem como enviar o codigo, ninguem terminaria um cadastro localmente.
-    monkeypatch.setattr(settings, "brevo_api_key", "")
+    monkeypatch.setattr(settings, "email_relay_url", "")
 
     register(client)
 
@@ -239,9 +239,9 @@ def test_local_environment_without_brevo_skips_verification(
 def test_production_never_skips_verification(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Mesmo que o Brevo estivesse faltando (a guarda de producao nao deixa a
+    # Mesmo que o envio estivesse desligado (a guarda de producao nao deixa a
     # aplicacao subir assim), producao nunca libera a conta sem verificar.
-    monkeypatch.setattr(settings, "brevo_api_key", "")
+    monkeypatch.setattr(settings, "email_relay_url", "")
     monkeypatch.setattr(settings, "environment", "production")
 
     register(client)
@@ -261,17 +261,20 @@ def test_production_requires_professor_email_domains() -> None:
             cloudinary_cloud_name="c",
             cloudinary_api_key="k",
             cloudinary_api_secret="s",
-            brevo_api_key="k",
-            email_sender_address="a@example.com",
+            email_relay_url="https://script.google.com/macros/s/x/exec",
+            email_relay_secret="s" * 48,
             professor_email_domains="",
         )
 
 
-def test_verification_email_goes_to_brevo(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_verification_email_goes_to_the_relay(monkeypatch: pytest.MonkeyPatch) -> None:
     sent: list[dict] = []
 
     class FakeResponse:
-        status_code = 201
+        status_code = 200
+
+        def json(self) -> dict:
+            return {"ok": True, "error": None}
 
     class FakeClient:
         def __init__(self, *args, **kwargs) -> None:
@@ -283,7 +286,7 @@ def test_verification_email_goes_to_brevo(monkeypatch: pytest.MonkeyPatch) -> No
         async def __aexit__(self, *args) -> None:
             pass
 
-        async def post(self, url: str, json: dict, headers: dict) -> FakeResponse:
+        async def post(self, url: str, json: dict) -> FakeResponse:
             sent.append(json)
             return FakeResponse()
 
@@ -292,5 +295,5 @@ def test_verification_email_goes_to_brevo(monkeypatch: pytest.MonkeyPatch) -> No
     asyncio.run(EmailSender().send_email_verification_code(STUDENT_EMAIL, "<i>Ana</i>", "ABCD2345"))
 
     assert sent[0]["subject"] == "Confirme seu e-mail no Campus Cultural"
-    assert "ABCD2345" in sent[0]["htmlContent"]
-    assert "<i>Ana</i>" not in sent[0]["htmlContent"]
+    assert "ABCD2345" in sent[0]["html"]
+    assert "<i>Ana</i>" not in sent[0]["html"]

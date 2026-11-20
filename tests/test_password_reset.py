@@ -204,22 +204,40 @@ def test_throttle_allows_again_after_cooldown() -> None:
     assert throttle.allow("a@x", now=60)
 
 
-# --- envio pelo Brevo ---------------------------------------------------------
+# --- envio pelo script do Google ----------------------------------------------
+
+RELAY_URL = "https://script.google.com/macros/s/teste/exec"
+RELAY_SECRET = "s" * 48
+
+
+class FakeRelay:
+    """Faz o papel do Apps Script: guarda o que chegou e devolve `reply`."""
+
+    def __init__(self) -> None:
+        self.requests: list[dict] = []
+        self.status_code = 200
+        self.reply: object = {"ok": True, "error": None}
 
 
 @pytest.fixture
-def brevo_configured(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
-    """Liga a configuracao do Brevo e intercepta o envio, sem ir para a rede."""
-    monkeypatch.setattr(settings, "brevo_api_key", "test-key")
-    monkeypatch.setattr(settings, "email_sender_address", "remetente@example.com")
-    sent: list[dict] = []
+def relay(monkeypatch: pytest.MonkeyPatch) -> FakeRelay:
+    """Liga a configuracao do envio e intercepta a chamada, sem ir para a rede."""
+    monkeypatch.setattr(settings, "email_relay_url", RELAY_URL)
+    monkeypatch.setattr(settings, "email_relay_secret", RELAY_SECRET)
+    fake = FakeRelay()
 
     class FakeResponse:
-        status_code = 201
+        def __init__(self) -> None:
+            self.status_code = fake.status_code
+
+        def json(self) -> object:
+            if isinstance(fake.reply, str):
+                raise ValueError("not json")
+            return fake.reply
 
     class FakeClient:
         def __init__(self, *args, **kwargs) -> None:
-            pass
+            fake.requests.append({"client_kwargs": kwargs})
 
         async def __aenter__(self):
             return self
@@ -227,54 +245,106 @@ def brevo_configured(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
         async def __aexit__(self, *args) -> None:
             pass
 
-        async def post(self, url: str, json: dict, headers: dict) -> FakeResponse:
-            sent.append({"url": url, "json": json, "headers": headers})
+        async def post(self, url: str, json: dict) -> FakeResponse:
+            fake.requests[-1].update(url=url, json=json)
             return FakeResponse()
 
     monkeypatch.setattr(email_sender_module.httpx, "AsyncClient", FakeClient)
-    return sent
+    return fake
 
 
-def test_email_goes_to_brevo_api(brevo_configured: list[dict]) -> None:
-    asyncio.run(EmailSender().send_password_reset_code("ana@utfpr.edu.br", "Ana", "ABCD2345"))
-
-    assert len(brevo_configured) == 1
-    request = brevo_configured[0]
-    assert request["url"] == "https://api.brevo.com/v3/smtp/email"
-    assert request["headers"]["api-key"] == "test-key"
-    assert request["json"]["to"] == [{"email": "ana@utfpr.edu.br", "name": "Ana"}]
-    assert "ABCD2345" in request["json"]["htmlContent"]
+def send(to: str = "ana@utfpr.edu.br", name: str = "Ana") -> None:
+    asyncio.run(EmailSender().send_password_reset_code(to, name, "ABCD2345"))
 
 
-def test_email_escapes_user_name(brevo_configured: list[dict]) -> None:
-    asyncio.run(EmailSender().send_password_reset_code("a@utfpr.edu.br", "<b>Ana</b>", "ABCD2345"))
+def test_email_goes_to_the_relay(relay: FakeRelay) -> None:
+    send()
 
-    html = brevo_configured[0]["json"]["htmlContent"]
+    assert len(relay.requests) == 1
+    request = relay.requests[0]
+    assert request["url"] == RELAY_URL
+    # O Apps Script responde com um redirecionamento; sem segui-lo, a API
+    # nunca veria o resultado.
+    assert request["client_kwargs"]["follow_redirects"] is True
+    assert request["json"]["secret"] == RELAY_SECRET
+    assert request["json"]["to"] == "ana@utfpr.edu.br"
+    assert request["json"]["subject"] == "Seu código para redefinir a senha"
+    assert "ABCD2345" in request["json"]["html"]
+
+
+def test_email_escapes_user_name(relay: FakeRelay) -> None:
+    send(name="<b>Ana</b>")
+
+    html = relay.requests[0]["json"]["html"]
     assert "<b>Ana</b>" not in html
     assert "&lt;b&gt;Ana&lt;/b&gt;" in html
 
 
-def test_email_is_skipped_when_brevo_is_not_configured(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ("status_code", "reply", "logged"),
+    [
+        (200, {"ok": False, "error": "quota"}, "relay error quota"),
+        (200, {"ok": False, "error": "<script>"}, "relay error unknown"),
+        (200, "<html>pagina de login do Google</html>", "unexpected page"),
+        (500, {"ok": True}, "relay returned 500"),
+    ],
+)
+def test_relay_failures_are_logged_without_the_address(
+    relay: FakeRelay,
+    caplog: pytest.LogCaptureFixture,
+    status_code: int,
+    reply: object,
+    logged: str,
 ) -> None:
-    monkeypatch.setattr(settings, "brevo_api_key", "")
+    relay.status_code = status_code
+    relay.reply = reply
+
+    send()
+
+    assert logged in caplog.text
+    assert "ana@utfpr.edu.br" not in caplog.text
+    assert "ABCD2345" not in caplog.text
+
+
+def test_email_is_skipped_when_relay_is_not_configured(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(settings, "email_relay_url", "")
 
     # Nao pode quebrar: roda em segundo plano, depois da resposta.
-    asyncio.run(EmailSender().send_password_reset_code("a@utfpr.edu.br", "Ana", "ABCD2345"))
+    send()
+
+    assert "email relay is not configured" in caplog.text
 
 
-def test_production_requires_brevo() -> None:
-    with pytest.raises(ValueError, match="BREVO_API_KEY"):
-        Settings(
-            _env_file=None,
-            environment="production",
-            jwt_secret_key="x" * 64,
-            database_url="postgresql://u:p@host/db",
-            seed_default_admin=False,
-            cors_origins="https://app.example.com",
-            cloudinary_cloud_name="c",
-            cloudinary_api_key="k",
-            cloudinary_api_secret="s",
-            brevo_api_key="",
-            email_sender_address="",
-        )
+def production_settings(**overrides: object) -> Settings:
+    values: dict[str, object] = {
+        "environment": "production",
+        "jwt_secret_key": "x" * 64,
+        "database_url": "postgresql://u:p@host/db",
+        "seed_default_admin": False,
+        "cors_origins": "https://app.example.com",
+        "cloudinary_cloud_name": "c",
+        "cloudinary_api_key": "k",
+        "cloudinary_api_secret": "s",
+        "email_relay_url": RELAY_URL,
+        "email_relay_secret": RELAY_SECRET,
+    }
+    return Settings(_env_file=None, **{**values, **overrides})
+
+
+def test_production_accepts_a_complete_relay_configuration() -> None:
+    assert production_settings().is_email_configured
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"email_relay_url": "", "email_relay_secret": ""}, "EMAIL_RELAY_URL e EMAIL_RELAY_SECRET"),
+        ({"email_relay_url": "http://script.google.com/x"}, "https://"),
+        ({"email_relay_secret": "curto"}, "32 caracteres"),
+    ],
+)
+def test_production_requires_a_safe_relay_configuration(overrides: dict, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        production_settings(**overrides)

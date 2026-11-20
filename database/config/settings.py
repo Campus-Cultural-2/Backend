@@ -31,12 +31,12 @@ class Settings(BaseSettings):
     cloudinary_api_key: str = ""
     cloudinary_api_secret: str = ""
 
-    # Brevo, que envia os e-mails (codigo de recuperacao de senha). E por API
-    # HTTP, e nao SMTP, porque o plano gratuito do Render bloqueia as portas
-    # de saida 25, 465 e 587. A chave fica no painel do Brevo, em
-    # SMTP & API > API Keys. O remetente precisa estar verificado no Brevo.
-    brevo_api_key: str = ""
-    email_sender_address: str = ""
+    # Envio de e-mail (codigos de recuperacao de senha e de confirmacao de
+    # e-mail) por um Google Apps Script que manda pelo Gmail do projeto. E
+    # por HTTPS, e nao SMTP, porque o plano gratuito do Render bloqueia as
+    # portas de saida 25, 465 e 587. Como montar: docs/envio-de-email/.
+    email_relay_url: str = ""
+    email_relay_secret: str = ""
     email_sender_name: str = "Campus Cultural UTFPR"
 
     # Dominios de e-mail aceitos no cadastro, separados por virgula. A
@@ -61,7 +61,7 @@ class Settings(BaseSettings):
 
     @property
     def is_email_configured(self) -> bool:
-        return all((self.brevo_api_key, self.email_sender_address))
+        return all((self.email_relay_url, self.email_relay_secret))
 
     @property
     def allowed_email_domains_list(self) -> list[str]:
@@ -110,9 +110,14 @@ class Settings(BaseSettings):
 
         if not self.is_email_configured:
             errors.append(
-                "BREVO_API_KEY e EMAIL_SENDER_ADDRESS precisam estar preenchidas. "
-                "Sem elas a recuperação de senha não envia o código."
+                "EMAIL_RELAY_URL e EMAIL_RELAY_SECRET precisam estar preenchidas. "
+                "Sem elas nenhum código chega por e-mail e ninguém termina o cadastro."
             )
+        else:
+            if not self.email_relay_url.startswith("https://"):
+                errors.append("EMAIL_RELAY_URL precisa começar com https://.")
+            if len(self.email_relay_secret) < 32:
+                errors.append("EMAIL_RELAY_SECRET precisa ter pelo menos 32 caracteres.")
 
         if not self.allowed_email_domains_list:
             errors.append("ALLOWED_EMAIL_DOMAINS não pode ficar vazio em produção.")
