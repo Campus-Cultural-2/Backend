@@ -31,6 +31,24 @@ class Settings(BaseSettings):
     cloudinary_api_key: str = ""
     cloudinary_api_secret: str = ""
 
+    # Envio de e-mail (codigos de recuperacao de senha e de confirmacao de
+    # e-mail) por um Google Apps Script que manda pelo Gmail do projeto. E
+    # por HTTPS, e nao SMTP, porque o plano gratuito do Render bloqueia as
+    # portas de saida 25, 465 e 587. Como montar: docs/envio-de-email/.
+    email_relay_url: str = ""
+    email_relay_secret: str = ""
+    email_sender_name: str = "Campus Cultural UTFPR"
+
+    # Dominios de e-mail aceitos no cadastro, separados por virgula. A
+    # comparacao e pelo dominio exato: "alunos.utfpr.edu.br" termina com
+    # "utfpr.edu.br", entao comparar pelo final aceitaria qualquer aluno como
+    # servidor.
+    allowed_email_domains: str = "utfpr.edu.br,alunos.utfpr.edu.br"
+    # Dominios aceitos para o papel de professor. Aluno tem caixa em
+    # alunos.utfpr.edu.br, nao em utfpr.edu.br; com a verificacao de e-mail,
+    # isso impede que um aluno se cadastre como professor.
+    professor_email_domains: str = "utfpr.edu.br"
+
     @property
     def is_production(self) -> bool:
         return self.environment.lower() == "production"
@@ -40,6 +58,18 @@ class Settings(BaseSettings):
         return all(
             (self.cloudinary_cloud_name, self.cloudinary_api_key, self.cloudinary_api_secret)
         )
+
+    @property
+    def is_email_configured(self) -> bool:
+        return all((self.email_relay_url, self.email_relay_secret))
+
+    @property
+    def allowed_email_domains_list(self) -> list[str]:
+        return _split_domains(self.allowed_email_domains)
+
+    @property
+    def professor_email_domains_list(self) -> list[str]:
+        return _split_domains(self.professor_email_domains)
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -78,10 +108,34 @@ class Settings(BaseSettings):
                 "estar preenchidas. Sem elas o upload de imagens não funciona."
             )
 
+        if not self.is_email_configured:
+            errors.append(
+                "EMAIL_RELAY_URL e EMAIL_RELAY_SECRET precisam estar preenchidas. "
+                "Sem elas nenhum código chega por e-mail e ninguém termina o cadastro."
+            )
+        else:
+            if not self.email_relay_url.startswith("https://"):
+                errors.append("EMAIL_RELAY_URL precisa começar com https://.")
+            if len(self.email_relay_secret) < 32:
+                errors.append("EMAIL_RELAY_SECRET precisa ter pelo menos 32 caracteres.")
+
+        if not self.allowed_email_domains_list:
+            errors.append("ALLOWED_EMAIL_DOMAINS não pode ficar vazio em produção.")
+
+        if not self.professor_email_domains_list:
+            errors.append(
+                "PROFESSOR_EMAIL_DOMAINS não pode ficar vazio em produção. "
+                "Sem ele qualquer pessoa pode se cadastrar como professor."
+            )
+
         if errors:
             raise ValueError("Configuração de produção inválida:\n  - " + "\n  - ".join(errors))
 
         return self
+
+
+def _split_domains(value: str) -> list[str]:
+    return [domain.strip().lower() for domain in value.split(",") if domain.strip()]
 
 
 settings = Settings()

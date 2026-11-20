@@ -17,6 +17,7 @@ http:
       {
         "name": "Evento Sem Auth",
         "event_datetime": "2027-10-10T10:00:00",
+        "event_end_datetime": "2027-10-10T12:00:00",
         "event_location": "Nowhere",
         "description": "Sem token",
         "image": null

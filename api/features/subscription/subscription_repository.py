@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from datetime import datetime
+
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.features.event.event import Event
 from api.features.subscription.subscription import EventSubscription
+from api.features.user.user import User
 
 
 class SubscriptionRepository:
@@ -18,6 +21,12 @@ class SubscriptionRepository:
         )
         return await self.session.scalar(statement)
 
+    async def count_by_event(self, event_id: int) -> int:
+        statement = select(func.count(EventSubscription.id)).where(
+            EventSubscription.event_id == event_id
+        )
+        return await self.session.scalar(statement) or 0
+
     async def create(self, subscription: EventSubscription) -> EventSubscription:
         self.session.add(subscription)
         await self.session.commit()
@@ -28,6 +37,22 @@ class SubscriptionRepository:
         await self.session.delete(subscription)
         await self.session.commit()
 
+    async def update(self, subscription: EventSubscription) -> EventSubscription:
+        self.session.add(subscription)
+        await self.session.commit()
+        await self.session.refresh(subscription)
+        return subscription
+
+    async def list_with_users(self, event_id: int) -> list[tuple[EventSubscription, User]]:
+        statement = (
+            select(EventSubscription, User)
+            .join(User, User.id == EventSubscription.user_id)
+            .where(EventSubscription.event_id == event_id)
+            .order_by(User.name, User.last_name, User.id)
+        )
+        result = await self.session.execute(statement)
+        return [(row[0], row[1]) for row in result.all()]
+
     async def list_events_by_user(self, user_id: int) -> list[Event]:
         statement = (
             select(Event)
@@ -37,3 +62,15 @@ class SubscriptionRepository:
         )
         result = await self.session.scalars(statement)
         return list(result)
+
+    async def list_subscribers_by_event(self, event_id: int) -> list[tuple[User, datetime]]:
+        # Uma unica consulta traz cada inscrito junto com a data da inscricao,
+        # na ordem em que as inscricoes foram feitas.
+        statement = (
+            select(User, EventSubscription.created_at)
+            .join(EventSubscription, EventSubscription.user_id == User.id)
+            .where(EventSubscription.event_id == event_id)
+            .order_by(EventSubscription.created_at, EventSubscription.id)
+        )
+        result = await self.session.execute(statement)
+        return [(user, subscribed_at) for user, subscribed_at in result.all()]

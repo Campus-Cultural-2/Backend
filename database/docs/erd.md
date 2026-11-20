@@ -40,6 +40,10 @@ erDiagram
         datetime start_at
         string location
         string description
+        bool has_certificate
+        int workload_hours "nullable"
+        string hours_group "nullable"
+        int max_participants "nullable"
     }
 
     EVENT_SUBSCRIPTION {
@@ -83,11 +87,17 @@ Recommended rule:
 | `start_at` | `datetime` | not null |
 | `location` | `str` | not null |
 | `description` | `str` | not null |
+| `has_certificate` | `bool` | not null, default `false` |
+| `workload_hours` | `int` | nullable, greater than 0; certificate workload in hours |
+| `hours_group` | `str` | nullable, one of `group_1`, `group_2`, `group_3` |
+| `max_participants` | `int` | nullable, greater than 0; null means no participant limit |
 
 Meaning:
 
 - Each event is created by one user.
 - One user can create many events.
+- `workload_hours` and `hours_group` are required when `has_certificate` is true and must be null otherwise.
+- When `max_participants` is set, subscriptions are refused once the event reaches it.
 
 ### `event_subscriptions`
 

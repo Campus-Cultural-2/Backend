@@ -1,0 +1,118 @@
+from __future__ import annotations
+
+import html
+import logging
+
+import httpx
+
+from api.shared.email_codes import WINDOW_SECONDS
+from database.config.settings import settings
+
+logger = logging.getLogger(__name__)
+
+# Erros que o script devolve (docs/envio-de-email/Code.gs). So estes vao para
+# o log; qualquer outra coisa vira "unknown", para o log nao repetir texto
+# arbitrario de uma URL configurada errada.
+RELAY_ERRORS = frozenset(
+    {"unauthorized", "recipient_not_allowed", "invalid_message", "quota", "error"}
+)
+
+
+class EmailSender:
+    """Envia e-mails pelo script do Google Apps Script (docs/envio-de-email/).
+
+    A API chama o script por HTTPS e ele envia pelo Gmail da conta do
+    projeto. Nao e por SMTP de proposito: o plano gratuito do Render bloqueia
+    as portas de saida 25, 465 e 587, entao SMTP funcionaria na maquina de
+    quem desenvolve e falharia em silencio em producao.
+
+    Os envios rodam em segundo plano, depois que a resposta ja foi devolvida
+    ao app, entao uma falha aqui nao chega ao usuario: vai para o log. O
+    endereco e o codigo nao entram no log.
+    """
+
+    async def send_password_reset_code(self, to: str, name: str, code: str) -> None:
+        await self._send_code(
+            to,
+            name,
+            code,
+            kind="Password reset",
+            subject="Seu código para redefinir a senha",
+            intro="Recebemos um pedido para redefinir a senha da sua conta no Campus Cultural.",
+            outro="Se não foi você que pediu, ignore este e-mail: sua senha continua a mesma.",
+        )
+
+    async def send_email_verification_code(self, to: str, name: str, code: str) -> None:
+        await self._send_code(
+            to,
+            name,
+            code,
+            kind="Email verification",
+            subject="Confirme seu e-mail no Campus Cultural",
+            intro="Falta só confirmar que este e-mail é seu para ativar a sua conta.",
+            outro="Se você não criou uma conta no Campus Cultural, ignore este e-mail.",
+        )
+
+    async def _send_code(
+        self,
+        to: str,
+        name: str,
+        code: str,
+        *,
+        kind: str,
+        subject: str,
+        intro: str,
+        outro: str,
+    ) -> None:
+        if not settings.is_email_configured:
+            logger.warning("%s email not sent: email relay is not configured", kind)
+            return
+
+        minutes = WINDOW_SECONDS // 60
+        # O nome vem do cadastro do usuario: escapar evita que alguem injete
+        # HTML no e-mail colocando tags no proprio nome.
+        safe_name = html.escape(name)
+        body = f"""\
+<p>Olá, {safe_name}.</p>
+<p>{intro}</p>
+<p>Seu código é:</p>
+<p style="font-size:24px;font-weight:bold;letter-spacing:4px">{code}</p>
+<p>Ele vale por {minutes} minutos e só pode ser usado uma vez.</p>
+<p>{outro}</p>
+"""
+        payload = {
+            "secret": settings.email_relay_secret,
+            "to": to,
+            "subject": subject,
+            "html": body,
+            "senderName": settings.email_sender_name,
+        }
+
+        try:
+            # O Apps Script responde o POST com um redirecionamento para a
+            # pagina com o resultado; sem seguir, a resposta nao diz se enviou.
+            async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
+                response = await client.post(settings.email_relay_url, json=payload)
+        except httpx.HTTPError as exc:
+            logger.warning("%s email not sent: %s", kind, type(exc).__name__)
+            return
+
+        if response.status_code >= 400:
+            logger.warning("%s email not sent: relay returned %s", kind, response.status_code)
+            return
+
+        try:
+            result = response.json()
+        except ValueError:
+            # Pagina de erro do Google em vez do JSON do script: URL errada ou
+            # implantacao que nao esta como "Qualquer pessoa".
+            logger.warning("%s email not sent: relay returned an unexpected page", kind)
+            return
+
+        if not isinstance(result, dict) or result.get("ok") is not True:
+            error = result.get("error") if isinstance(result, dict) else None
+            logger.warning(
+                "%s email not sent: relay error %s",
+                kind,
+                error if error in RELAY_ERRORS else "unknown",
+            )

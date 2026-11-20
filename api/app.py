@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.features.attendance.attendance_controller import router as attendance_router
 from api.features.event.event_controller import router as event_router
 from api.features.subscription.subscription_controller import router as subscription_router
 from api.features.user.user_controller import router as user_router
@@ -51,6 +52,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
     app.include_router(user_router)
     app.include_router(subscription_router)
     app.include_router(event_router)
+    app.include_router(attendance_router)
     return app
 
 

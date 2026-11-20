@@ -23,9 +23,20 @@ class ErrorCode(StrEnum):
     EVENT_NOT_FOUND = "event_not_found"
     EVENT_ALREADY_SUBSCRIBED = "event_already_subscribed"
     EVENT_SUBSCRIPTION_NOT_FOUND = "event_subscription_not_found"
+    EVENT_FULL = "event_full"
+    EVENT_LIMIT_BELOW_SUBSCRIBERS = "event_limit_below_subscribers"
+    INVALID_CERTIFICATE_INFO = "invalid_certificate_info"
+    INVALID_EVENT_PERIOD = "invalid_event_period"
+    ATTENDANCE_MODE_MISMATCH = "attendance_mode_mismatch"
+    INVALID_ATTENDANCE_CODE = "invalid_attendance_code"
+    ATTENDANCE_WINDOW_CLOSED = "attendance_window_closed"
     INVALID_IMAGE = "invalid_image"
     IMAGE_STORAGE_UNAVAILABLE = "image_storage_unavailable"
     PERMISSION_DENIED = "permission_denied"
+    INVALID_PASSWORD_RESET_CODE = "invalid_password_reset_code"
+    EMAIL_NOT_VERIFIED = "email_not_verified"
+    INVALID_EMAIL_VERIFICATION_CODE = "invalid_email_verification_code"
+    EMAIL_DOMAIN_NOT_ALLOWED = "email_domain_not_allowed"
 
 
 class AppError(Exception):

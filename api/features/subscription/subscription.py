@@ -18,3 +18,5 @@ class EventSubscription(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     event_id: Mapped[int] = mapped_column(ForeignKey("events.id"), nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    # Quando a presenca foi confirmada (UTC). Nulo = presenca nao confirmada.
+    checked_in_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
