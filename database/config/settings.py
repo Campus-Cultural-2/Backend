@@ -9,7 +9,13 @@ DEV_JWT_SECRET_KEY = "dev-only-insecure-secret-do-not-use-in-production"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    # hide_input_in_errors: quando a configuracao e recusada, o pydantic poe no
+    # erro um trecho dos valores recebidos, e esse erro vai para o log do
+    # deploy. Sem esta opcao, o final de um segredo ou da string do banco
+    # podia aparecer ali.
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", hide_input_in_errors=True
+    )
 
     # "development" | "production"
     environment: str = "development"

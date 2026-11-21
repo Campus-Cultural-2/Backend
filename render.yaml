@@ -38,7 +38,11 @@ services:
     #
     # Em planos pagos da para usar `preDeployCommand` para rodar as
     # migrations uma vez por deploy, em vez de a cada restart.
-    startCommand: uv run alembic upgrade head && uv run uvicorn main:app --host 0.0.0.0 --port $PORT
+    #
+    # --frozen --no-dev, igual ao build: sem isso o `uv run` "completa" o
+    # ambiente e baixa pytest, ruff e companhia a cada start, o que deixa o
+    # start mais lento e instala em producao pacotes que ela nao usa.
+    startCommand: uv run --frozen --no-dev alembic upgrade head && uv run --frozen --no-dev uvicorn main:app --host 0.0.0.0 --port $PORT
 
     # O Render usa esta rota para saber se a aplicacao subiu. Ela responde
     # sem tocar no banco, entao nao acorda o Neon a toa.
