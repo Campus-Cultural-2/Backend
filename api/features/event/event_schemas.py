@@ -34,6 +34,8 @@ class EventOutSchema(EventBaseSchema):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    # Dono do evento; o app usa para mostrar editar/excluir so para ele.
+    user_id: int
     created_at: datetime
     # Link da imagem no Cloudinary. No banco a coluna se chama image_url; na
     # API o campo continua sendo image, que e o nome que o app ja usa.
