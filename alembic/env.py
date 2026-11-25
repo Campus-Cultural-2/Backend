@@ -9,6 +9,7 @@ from alembic import context
 # Os modelos precisam ser importados para se registrarem no Base.metadata.
 # Sem estes imports o metadata fica vazio e o `--autogenerate` acha que
 # todas as tabelas foram removidas, gerando uma migration que apaga o banco.
+from api.features.certificate.certificate import Certificate  # noqa: F401
 from api.features.event.event import Event  # noqa: F401
 from api.features.subscription.subscription import EventSubscription  # noqa: F401
 from api.features.user.user import User  # noqa: F401

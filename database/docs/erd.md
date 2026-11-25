@@ -1,6 +1,6 @@
 # ERD Proposal
 
-This document proposes the database structure for `User`, `Event`, and `EventSubscription`.
+This document proposes the database structure for `User`, `Event`, `EventSubscription`, and `Certificate`.
 
 ## Assumptions
 
@@ -10,6 +10,7 @@ This document proposes the database structure for `User`, `Event`, and `EventSub
 - Keep, for each image, the Cloudinary link (to show it) and its `public_id` (to delete it from Cloudinary when it is replaced, removed, or its event or user is deleted). All four columns are nullable.
 - Keep `users.ra` nullable, but only valid for students.
 - Prevent duplicate event subscriptions with a unique constraint on `(event_id, user_id)`.
+- An event defines a single certificate (`workload_hours` and `hours_group`); each subscribed student receives at most one issued copy of it in `certificates`.
 
 ## Mermaid ERD
 
@@ -18,6 +19,9 @@ erDiagram
     USER ||--o{ EVENT : creates
     USER ||--o{ EVENT_SUBSCRIPTION : subscribes
     EVENT ||--o{ EVENT_SUBSCRIPTION : has
+    USER ||--o{ CERTIFICATE : receives
+    EVENT ||--o{ CERTIFICATE : issues
+    EVENT_SUBSCRIPTION ||--o| CERTIFICATE : generates
 
     USER {
         int id PK
@@ -52,6 +56,17 @@ erDiagram
         int user_id FK
         boolean has_attended
         datetime created_at
+    }
+
+    CERTIFICATE {
+        int id PK
+        int event_id FK
+        int user_id FK
+        int subscription_id FK, UK
+        int workload_hours
+        string hours_group
+        string validation_code UK
+        datetime issued_at
     }
 ```
 
@@ -119,9 +134,32 @@ Recommended rule:
 
 - Add a unique constraint on (`event_id`, `user_id`) to prevent duplicate subscriptions.
 
+### `certificates`
+
+| Column | Type | Constraints |
+| --- | --- | --- |
+| `id` | `int` | primary key |
+| `event_id` | `int` | not null, foreign key -> `events.id`, indexed |
+| `user_id` | `int` | not null, foreign key -> `users.id`, indexed |
+| `subscription_id` | `int` | not null, unique, foreign key -> `event_subscriptions.id` |
+| `workload_hours` | `int` | not null, greater than 0; copied from the event when issued |
+| `hours_group` | `str` | not null, one of `group_1`, `group_2`, `group_3`; copied from the event when issued |
+| `validation_code` | `str` | not null, unique; UUID used to check that a certificate is authentic |
+| `issued_at` | `datetime` | not null |
+
+Meaning:
+
+- Each row is the event's certificate issued to one subscribed student.
+- One student can have many certificates, one per event at most: unique constraint on (`event_id`, `user_id`).
+- A certificate only exists for a subscription, and a subscription generates at most one certificate.
+- `workload_hours` and `hours_group` are a snapshot: editing the event later does not change certificates already issued. Student data (name, RA) is read from `users`.
+
 ## Relationship Summary
 
 - `users.id` 1:N `events.user_id`
 - `users.id` 1:N `event_subscriptions.user_id`
 - `events.id` 1:N `event_subscriptions.event_id`
 - `users` N:M `events` through `event_subscriptions`
+- `users.id` 1:N `certificates.user_id`
+- `events.id` 1:N `certificates.event_id`
+- `event_subscriptions.id` 1:0..1 `certificates.subscription_id`
